@@ -1,0 +1,4 @@
+
+SMS_URL = ""
+SMS_API_ID = ""
+SMS_SENDER_ID = ""
