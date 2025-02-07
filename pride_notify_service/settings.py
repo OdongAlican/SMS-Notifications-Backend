@@ -11,6 +11,7 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 """
 
 from pathlib import Path
+import os
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -37,14 +38,19 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'corsheaders',
     # Third party apps
     'rest_framework',
     # Local apps
-    'pride_notify_notice'
+    'pride_notify_notice',
+    'django_celery_results',
+    'django_celery_beat',
+
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -79,9 +85,22 @@ WSGI_APPLICATION = 'pride_notify_service.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-    }
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': 'sms_logs',
+        'USER': 'root',
+        'PASSWORD': '12345678',
+        'HOST': 'localhost',
+        'PORT': '3306',
+    },
+    'oracle': {
+        'ENGINE': 'django.db.backends.oracle',
+        'NAME': 'RUBIKON',
+        'USER': 'reports',
+        'PASSWORD': 'Today_2025',
+        'HOST': '172.16.13.10',
+        'PORT': '1521',
+        'OPTIONS': {'service_name': 'PRDTEST'},
+    },
 }
 
 
@@ -125,6 +144,29 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+SMS_URL = 'https://192.168.0.35/moonLight/SmsReceiver'
+SENDER_NAME ='ibank'
+SENDER_PASSWORD ='58c38dca-fc46-4018-a471-265cd7d98ab0'
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "https://yourfrontenddomain.com",
+]
+
+
+# Celery Configuration
+CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Redis broker URL
+# CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'  # Redis result backend
+CELERY_RESULT_BACKEND = 'django-db'  # Store in Django Database because of data persistance
+CELERY_ACCEPT_CONTENT = ['application/json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'Africa/Kampala'
+
+# CELERY BEAT SCHEDULER
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
 
 try:
     from pride_notify_service.env.local import *
