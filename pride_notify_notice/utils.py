@@ -3,11 +3,8 @@ from django.db.utils import OperationalError
 
 
 def handle_loans_due(*args, **kwargs):
-        # Access the Oracle database through a custom connection
         try:
-            # Use the 'oracle' connection defined in settings.py
             with connections['oracle'].cursor() as cursor:
-                # Updated SQL query
                 query = """
                     SELECT 
                         a.cust_id,
@@ -47,20 +44,8 @@ def handle_loans_due(*args, **kwargs):
                 """
 
                 cursor.execute(query)
-
-                # # Fetch all rows
-                # rows = cursor.fetchall()
-
-                # # Process your rows (you can print or save them)
-                # for row in rows:
-                #     self.stdout.write(str(row))
-
-
-                # Fetch all rows and return them as a list of dictionaries
                 columns = [col[0] for col in cursor.description]
                 rows = cursor.fetchall()
-
-                # Convert rows into a list of dictionaries
                 result = []
 
                 for row in rows:
