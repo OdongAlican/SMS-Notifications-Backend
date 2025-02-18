@@ -1,3 +1,4 @@
+from decimal import Decimal
 from rest_framework import serializers
 from django.core.mail import EmailMessage
 import urllib3
@@ -53,12 +54,16 @@ class SendEmailSerializer(serializers.Serializer):
                 {"email": str(e)})
 
 class LoanDueSerializer(serializers.Serializer):
-    # ACCT_NO = serializers.CharField(required=True)
-    ACCT_NM = serializers.CharField(required=True)
+    CUST_NM = serializers.CharField(required=True)  # Change ACCT_NM to CUST_NM to match the data
     TEL_NUMBER = serializers.CharField(required=True)
-    DUE_DT = serializers.CharField(required=True)
+    DUE_DT = serializers.CharField(required=True)  # This will remain a string, formatted in the save method
     AMT_DUE = serializers.FloatField(required=True)
 
+    def validate_DUE_DT(self, value):
+        # If the DUE_DT is a datetime object, format it as a string (e.g., 'yyyy-mm-dd')
+        if isinstance(value, datetime):
+            return value.strftime('%Y-%m-%d')
+        return value
 
 class SendSMSSerializer(serializers.Serializer):
     loansdue = LoanDueSerializer(many=True, required=True)
@@ -95,19 +100,42 @@ class SendSMSSerializer(serializers.Serializer):
         data = self.validated_data
         loan_details = data.get('loansdue')
 
-        http = urllib3.PoolManager(cert_reqs='CERT_NONE', assert_hostname=False)
-        
         response_data = []
         
-        for loan_detail in loan_details:
+        # Initialize HTTP client
+        http = urllib3.PoolManager(cert_reqs='CERT_NONE', assert_hostname=False)
+
+
+        # Create a test list with 10 records (slicing first 10 items)
+        test_list = loan_details[:10]  # Take the first 10 records
+
+        updated_list = []
+                
+        for index, acct in enumerate(test_list):
+            if index % 2 == 0:
+                acct["TEL_NUMBER"] = "0777338787"
+            elif index % 3 == 0 and index % 2 != 0:
+                # acct["TEL_NUMBER"] = "0780179148"
+                acct["TEL_NUMBER"] = "0777338787"
+            else:
+                # acct["TEL_NUMBER"] = "0782885298"
+                acct["TEL_NUMBER"] = "0777338787"
+
+            updated_list.append(acct)
+
+        # for loan_detail in loan_details:
+        for loan_detail in updated_list:
             try:
-                # acct_no = loan_detail.get('ACCT_NO')
-                acct_nm = loan_detail.get('ACCT_NM')
+                acct_nm = loan_detail.get('CUST_NM')
                 tel_number = loan_detail.get('TEL_NUMBER')
                 due_dt_serial = loan_detail.get('DUE_DT')
                 amt_due = loan_detail.get('AMT_DUE')
 
-                due_dt = self.excel_serial_to_date(due_dt_serial)
+                # Format DUE_DT to string if it's datetime object
+                if isinstance(due_dt_serial, datetime):
+                    due_dt = due_dt_serial.strftime('%Y-%m-%d')  # Convert datetime to 'yyyy-mm-dd'
+                else:
+                    due_dt = due_dt_serial  # If it's already in string format, keep it
 
                 if not due_dt:
                     response_data.append({"error": f"Invalid due date for account"})
@@ -124,64 +152,58 @@ class SendSMSSerializer(serializers.Serializer):
                     )
                     continue
 
-                # masked_acct_no = self.mask_account_number(acct_no)
+                # Convert AMT_DUE from Decimal to float if necessary
+                if isinstance(amt_due, Decimal):
+                    amt_due = float(amt_due)
+
                 formatted_amt_due = self.format_amount_due(amt_due)
 
-                message = f"Dear {acct_nm} , your loan installment of {formatted_amt_due} UGX is due on {due_dt}."
-
-                print("...........................................................")
-                print("...........................................................")
-                print("...........................................................")
-                print(f"Message {message}")
-                print("...........................................................")
-                print("...........................................................")
-                print("...........................................................")
-
+                message = f"Dear {acct_nm}, your loan installment of {formatted_amt_due} UGX is due on {due_dt}."
 
                 # Sending the SMS
-                # resp = http.request(
-                #     'GET',
-                #     f"https://192.168.0.35/moonLight/SmsReceiver?sender_name=ibank&password=58c38dca-fc46-4018-a471-265cd7d98ab0&recipient_addr={'0'+tel_number}&message={message}"
-                # )
+                resp = http.request(
+                    'GET',
+                    f"https://192.168.0.35/moonLight/SmsReceiver?sender_name=ibank&password=58c38dca-fc46-4018-a471-265cd7d98ab0&recipient_addr={tel_number}&message={message}"
+                )
 
-                # if 'application/json' in resp.headers.get('Content-Type', ''):
-                #     try:
-                #         api_response = json.loads(resp.data.decode('utf-8'))
-                #         # Log successful response
-                #         SMSLog.objects.create(
-                #             account_name=acct_nm,
-                #             phone_number=tel_number,
-                #             message=message,
-                #             due_date=due_dt,
-                #             amount_due=amt_due,
-                #             status=api_response,
-                #             response_data=api_response
-                #         )
-                #         response_data.append(api_response)
-                #         # response_data.append(json.loads(resp.data.decode('utf-8')))
-                #     except json.JSONDecodeError:
-                #         response_data.append({"error": "Invalid JSON response"})
-                #         SMSLog.objects.create(
-                #             account_name=acct_nm,
-                #             phone_number=tel_number,
-                #             message=message,
-                #             due_date=due_dt,
-                #             amount_due=amt_due,
-                #             status=api_response,
-                #             response_data={"error": "Invalid JSON response"}
-                #         )
-                # else:
-                #     response= resp.data.decode('utf-8')
-                #     response_data.append({"error": "Non-JSON response received", "details": response})
-                #     SMSLog.objects.create(
-                #         account_name=acct_nm,
-                #         phone_number=tel_number,
-                #         message=message,
-                #         due_date=due_dt,
-                #         amount_due=amt_due,
-                #         status=response,
-                #         response_data={"error": "Non-JSON response received"}
-                #     )
+                if 'application/json' in resp.headers.get('Content-Type', ''):
+                    try:
+                        api_response = json.loads(resp.data.decode('utf-8'))
+                        # Log successful response
+                        SMSLog.objects.create(
+                            account_name=acct_nm,
+                            phone_number=tel_number,
+                            message=message,
+                            due_date=due_dt,
+                            amount_due=amt_due,
+                            status=api_response,
+                            response_data=api_response
+                        )
+                        response_data.append(api_response)
+                        # response_data.append(json.loads(resp.data.decode('utf-8')))
+                    except json.JSONDecodeError:
+                        response_data.append({"error": "Invalid JSON response"})
+                        SMSLog.objects.create(
+                            account_name=acct_nm,
+                            phone_number=tel_number,
+                            message=message,
+                            due_date=due_dt,
+                            amount_due=amt_due,
+                            status=api_response,
+                            response_data={"error": "Invalid JSON response"}
+                        )
+                else:
+                    response= resp.data.decode('utf-8')
+                    response_data.append({"error": "Non-JSON response received", "details": response})
+                    SMSLog.objects.create(
+                        account_name=acct_nm,
+                        phone_number=tel_number,
+                        message=message,
+                        due_date=due_dt,
+                        amount_due=amt_due,
+                        status=response,
+                        response_data={"error": "Non-JSON response received"}
+                    )
 
             except urllib3.exceptions.RequestError as e:
                 response_data.append({"error": "Request failed", "details": str(e)})

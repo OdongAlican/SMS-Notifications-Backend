@@ -14,10 +14,10 @@ app = Celery('pride_notify_service')
 # the configuration object to child processes.
 
 # Disable UTC default timezone
-app.conf.enable_utc = False
+# app.conf.enable_utc = False
 
 # Set the timezone to Uganda
-app.conf.timezone = 'Africa/Kampala'
+# app.conf.timezone = 'Africa/Kampala'
 
 app.config_from_object(settings, namespace='CELERY')
 
@@ -25,9 +25,8 @@ app.config_from_object(settings, namespace='CELERY')
 app.conf.beat_schedule = {
     'send-sms-every-day-at-10': {
         'task': 'pride_notify_notice.tasks.retrieve_data',
-        # 'task': 'pride_notify_service.tasks.send_due_loan_sms',
-        # 'schedule': crontab(hour=12, minute='10'), # Run everyday at 10:00 am
-        'schedule': crontab(minute='*/1'),  # Every 1 minutes
+        'schedule': crontab(hour=16, minute=31), # Run everyday at 10:00 am
+        # 'schedule': crontab(minute='*/1'),  # Every 1 minutes
     },
 }
 

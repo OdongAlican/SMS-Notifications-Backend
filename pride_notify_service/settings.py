@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.0/ref/settings/
 """
 
+from datetime import timedelta
 from pathlib import Path
 import os
 
@@ -41,11 +42,12 @@ INSTALLED_APPS = [
     'corsheaders',
     # Third party apps
     'rest_framework',
+    'rest_framework.authtoken', 
     # Local apps
     'pride_notify_notice',
     'django_celery_results',
     'django_celery_beat',
-
+    'users',
 ]
 
 MIDDLEWARE = [
@@ -122,6 +124,28 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+}
+
+# Optionally set JWT expiration time
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': 'your_secret_key',
+    'VERIFYING_KEY': None,
+    'AUDIENCE': None,
+    'ISSUER': None,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+    # 'USER_ID_FIELD': 'username',
+    # 'USER_ID_CLAIM': 'username',
+}
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/4.0/topics/i18n/
@@ -162,7 +186,7 @@ CELERY_RESULT_BACKEND = 'django-db'  # Store in Django Database because of data 
 CELERY_ACCEPT_CONTENT = ['application/json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
-CELERY_TIMEZONE = 'Africa/Kampala'
+# CELERY_TIMEZONE = 'Africa/Kampala'
 
 # CELERY BEAT SCHEDULER
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
