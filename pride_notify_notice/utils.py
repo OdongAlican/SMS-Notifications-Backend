@@ -58,3 +58,27 @@ def handle_loans_due(*args, **kwargs):
             # Handle database connection errors
             print(f"Error connecting to Oracle: {e}")
             return []
+
+
+def handle_birthdays():
+        try:
+            with connections['oracle'].cursor() as cursor:
+                query = """
+                    SELECT * FROM PRIDELIVE.BIRTH_DAY
+                """
+
+                cursor.execute(query)
+                columns = [col[0] for col in cursor.description]
+                rows = cursor.fetchall()
+                result = []
+
+                for row in rows:
+                    row_dict = dict(zip(columns, row))
+                    result.append(row_dict)
+
+                # Process the result (return or print it)
+                return result
+        except OperationalError as e:
+            # Handle database connection errors
+            print(f"Error connecting to Oracle: {e}")
+        return []

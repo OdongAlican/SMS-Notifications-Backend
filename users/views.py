@@ -3,7 +3,7 @@ from rest_framework import viewsets, generics
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
-from .serializers import GroupSerializer, PermissionSerializer
+from .serializers import GroupSerializer, PermissionSerializer, UserSerializer
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from .utils import CustomGroupPermission
 
@@ -161,3 +161,24 @@ class UpdateGroupNameApi(generics.GenericAPIView):
             return Response(
                 {"error": "Group not found."}, status=status.HTTP_404_NOT_FOUND
             )
+
+
+
+class UserViewSet(viewsets.ModelViewSet):
+    """
+    API endpoint for managing users.
+    """
+    queryset = User.objects.all()
+    serializer_class = UserSerializer
+    permission_classes = [IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+    http_method_names = ['get', 'post', 'patch', 'delete']  # Allow only these HTTP methods
+    
+    def get_permissions(self):
+        """
+        Custom permissions logic for user actions based on group memberships.
+        """
+        if self.action in ['create', 'update', 'destroy']:
+            # For create, update, or destroy actions, only users with 'admin' group can access.
+            self.permission_classes = [IsAuthenticated, CustomGroupPermission]
+        return super().get_permissions()

@@ -186,7 +186,7 @@ CELERY_RESULT_BACKEND = 'django-db'  # Store in Django Database because of data 
 CELERY_ACCEPT_CONTENT = ['application/json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
-# CELERY_TIMEZONE = 'Africa/Kampala'
+CELERY_TIMEZONE = 'Africa/Kampala'
 
 # CELERY BEAT SCHEDULER
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
