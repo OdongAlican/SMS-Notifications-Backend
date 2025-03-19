@@ -2,7 +2,7 @@ from rest_framework import serializers
 from django.core.mail import EmailMessage
 from rest_framework.response import Response
 from datetime import datetime
-from pride_notify_notice.models import SMSLog
+from pride_notify_notice.models import SMSLog, BirthdaySMSLog
 from .tasks import send_sms_to_api
 from .utils import update_List, batch_save_responses
 
@@ -138,3 +138,8 @@ class SendBirthdaySMSSerializer(serializers.Serializer):
         batch_save_responses(task_results)
         
         return Response(task_results)
+    
+class BirthdaySMSLogSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = BirthdaySMSLog
+        fields = ['id', 'acct_nm', 'client_type', 'status', 'created_at', 'response_data', 'date_of_birth', 'contact']

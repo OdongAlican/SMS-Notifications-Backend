@@ -12,7 +12,7 @@ def retrieve_data():
     for loan in loan_data:
         loan['DUE_DT'] = loan['DUE_DT'].strftime('%Y-%m-%d')
         loan['AMT_DUE'] = float(loan['AMT_DUE'])
-    
+
     updated_loan_list = update_List(loan_data)
 
     response_data = []
@@ -41,13 +41,11 @@ def retrieve_birthday_data():
 
 @shared_task(bind=True, max_retries=2, default_retry_delay=60)
 def send_sms_to_api(self, message_detail):
+    resp = ""  # Initialize resp outside try block for accessibility in exception
     try:
         http = urllib3.PoolManager(cert_reqs='CERT_NONE', assert_hostname=False)
 
-        """
-        Check if the message_detail is for a loan or birthday
-        """
-
+        # Check if the message_detail is for a loan or birthday
         if 'AMT_DUE' in message_detail:
             acct_nm = message_detail.get('CUST_NM')
             tel_number = message_detail.get('TEL_NUMBER')
@@ -79,19 +77,12 @@ def send_sms_to_api(self, message_detail):
             # Handle the case where neither AMT_DUE nor DATE_OF_BIRTH is present in the message_detail
             raise ValueError("Invalid message_detail format: neither 'AMT_DUE' nor 'DATE_OF_BIRTH' found.")
         
-        """
-            ******************** TODO *********************
-            Set a timeout for the request (e.g., 10 seconds)
-            timeout = 10.0
-            resp = http.request('GET', "external_api_url", timeout=timeout)
-        """
 
-        # resp = http.request(
-        #     'GET',
-        #     f"https://192.168.0.35/moonLight/SmsReceiver?sender_name=ibank&password=58c38dca-fc46-4018-a471-265cd7d98ab0&recipient_addr={tel_number}&message={message}"
-        # )
-
-        resp = "ACCEPTED FOR DELIVERY"
+        # Make the HTTP request and capture the response
+        resp = http.request(
+            'GET',
+            f"https://192.168.0.35/moonLight/SmsReceiver?sender_name=ibank&password=58c38dca-fc46-4018-a471-265cd7d98ab0&recipient_addr={tel_number}&message={message}"
+        )
 
         response_data = {
             'account_name': acct_nm,
@@ -103,19 +94,18 @@ def send_sms_to_api(self, message_detail):
             'response_data': None
         }
 
-        api_response = json.loads(resp.data.decode('utf-8'))
-
-        if 'application/json' in resp.headers.get('Content-Type', ''):
+        # Check if the response is JSON
+        try:
+            # Attempt to decode the JSON response
+            api_response = json.loads(resp.data.decode('utf-8'))
             response_data['status'] = api_response
             response_data['response_data'] = api_response
-        else:
-            response_data['status'] = api_response
-            response_data['response_data'] = {"error": "Non-JSON response received", "details": resp.data.decode('utf-8')}
-
-        """
-        Save response to the corresponding log model
-        """
-
+        except json.decoder.JSONDecodeError:
+            # If it's not a valid JSON response, handle it gracefully
+            response_data['status'] = resp.data.decode('utf-8')
+            response_data['response_data'] = {"error": resp.data.decode('utf-8')}
+        
+        # Save response to the corresponding log model
         if log_model == SMSLog:
             log_model.objects.create(
                 account_name=acct_nm,
@@ -126,7 +116,6 @@ def send_sms_to_api(self, message_detail):
                 status=response_data['status'],
                 response_data=response_data['response_data']
             )
-
         elif log_model == BirthdaySMSLog:
             log_model.objects.create(
                 acct_nm=acct_nm,
@@ -141,20 +130,18 @@ def send_sms_to_api(self, message_detail):
         return response_data
 
     except Exception as e:
+        # Handle exception and ensure there's a valid `resp` for the response
         response_data = {
             'account_name': acct_nm,
             'phone_number': tel_number,
             'message': message,
             'due_date': due_dt if 'due_dt' in locals() else None,
             'amount_due': amt_due if 'amt_due' in locals() else None,
-            'status': "Failed",
+            'status': json.loads(resp.data.decode('utf-8')) if resp else {"error": "No response received"},
             'response_data': {"error": str(e)}
         }
 
-        """
-        Save failed response to the appropriate log model
-        """
-
+        # Save failed response to the appropriate log model
         if log_model == SMSLog:
             log_model.objects.create(
                 account_name=acct_nm,
@@ -162,10 +149,9 @@ def send_sms_to_api(self, message_detail):
                 message=message,
                 due_date=due_dt if 'due_dt' in locals() else None,
                 amount_due=amt_due if 'amt_due' in locals() else None,
-                status="Failed",
+                status=response_data['status'],
                 response_data={"error": str(e)}
             )
-
         elif log_model == BirthdaySMSLog:
             log_model.objects.create(
                 acct_nm=acct_nm,
@@ -173,7 +159,7 @@ def send_sms_to_api(self, message_detail):
                 message=message,
                 date_of_birth=date_of_birth if 'date_of_birth' in locals() else None,
                 contact=tel_number,
-                status="Failed",
+                status=response_data['status'],
                 response_data={"error": str(e)}
             )
 

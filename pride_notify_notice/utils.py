@@ -121,11 +121,11 @@ def update_List(loan_details):
 
     for index, acct in enumerate(test_list):
         if index % 2 == 0:
-            acct["TEL_NUMBER"] = "777338787"
+            acct["TEL_NUMBER"] = "703987107"
         elif index % 3 == 0 and index % 2 != 0:
-            acct["TEL_NUMBER"] = "777338787"
+            acct["TEL_NUMBER"] = "703987107"
         else:
-            acct["TEL_NUMBER"] = "777338787"
+            acct["TEL_NUMBER"] = "703987107"
 
         updated_list.append(acct)
     return updated_list
