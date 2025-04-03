@@ -13,8 +13,24 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 from datetime import timedelta
 from pathlib import Path
 import os
+from cryptography.fernet import Fernet
 from dotenv import load_dotenv
 load_dotenv()
+
+
+# Load the encryption key from environment variables
+encryption_key = os.getenv("ENCRYPTION_KEY")
+
+if encryption_key is None:
+    raise ValueError("Encryption key not found. Set ENCRYPTION_KEY in your environment variables.")
+
+cipher = Fernet(encryption_key.encode())
+
+# Function to decrypt values
+def decrypt_data(encrypted_value):
+    return cipher.decrypt(encrypted_value.encode()).decode()
+
+
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -76,20 +92,20 @@ WSGI_APPLICATION = 'pride_notify_service.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': os.environ["MYSQL_DATABASE_NAME"],
-        'USER': os.environ["MYSQL_DATABASE_USER"],
-        'PASSWORD': os.environ["MYSQL_DATABASE_PASSWORD"],
-        'HOST': os.environ["MYSQL_DATABASE_HOST"],
-        'PORT': os.environ["MYSQL_DATABASE_PORT"],
+        'NAME': decrypt_data(os.environ["MYSQL_ENCRYPT_DATABASE_NAME"]),
+        'USER': decrypt_data(os.environ["MYSQL_ENCRYPT_DATABASE_USER"]),
+        'PASSWORD': decrypt_data(os.environ["MYSQL_ENCRYPT_DATABASE_PASSWORD"]),
+        'HOST': decrypt_data(os.environ["MYSQL_ENCRYPT_DATABASE_HOST"]),
+        'PORT': decrypt_data(os.environ["MYSQL_ENCRYPT_DATABASE_PORT"]),
     },
     'oracle': {
         'ENGINE': 'django.db.backends.oracle',
-        'NAME': os.environ["ORACLE_DATABASE_NAME"],
-        'USER': os.environ["ORACLE_DATABASE_USER"],
-        'PASSWORD': os.environ["ORACLE_DATABASE_PASSWORD"],
-        'HOST': os.environ["ORACLE_DATABASE_HOST"],
-        'PORT': os.environ["ORACLE_DATABASE_PORT"],
-        'OPTIONS': {'service_name': os.environ["ORACLE_DATABASE_SERVICE_NAME"],},
+        'NAME': decrypt_data(os.environ["ORACLE_DATABASE_NAME"]),
+        'USER': decrypt_data(os.environ["ORACLE_DATABASE_USER"]),
+        'PASSWORD': decrypt_data(os.environ["ORACLE_DATABASE_PASSWORD"]),
+        'HOST': decrypt_data(os.environ["ORACLE_DATABASE_HOST"]),
+        'PORT': decrypt_data(os.environ["ORACLE_DATABASE_PORT"]),
+        'OPTIONS': {'service_name': decrypt_data(os.environ["ORACLE_DATABASE_SERVICE_NAME"]),},
     },
 }
 
