@@ -119,13 +119,34 @@ def update_List(loan_details):
     test_list = loan_details[:10]
     updated_list = []
 
-    for index, acct in enumerate(test_list):
-        if index % 2 == 0:
-            acct["TEL_NUMBER"] = "703987107"
-        elif index % 3 == 0 and index % 2 != 0:
-            acct["TEL_NUMBER"] = "703987107"
-        else:
-            acct["TEL_NUMBER"] = "703987107"
+    # Example list of different phone numbers
+    phone_numbers = [
+        "777338787", "780179148", "704008866", "703286023", "782885298",
+        "703987107", "780179148", "704008866", "703286023", "782885298"
+    ]
 
+    for index, acct in enumerate(test_list):
+        # Assign a unique phone number from the list for each index
+        acct["TEL_NUMBER"] = phone_numbers[index]
+        
         updated_list.append(acct)
+    
+    return updated_list
+
+def update_List_birthdays(loan_details):
+    test_list = loan_details[:10]
+    updated_list = []
+
+    # Example list of different phone numbers
+    phone_numbers = [
+        "777338787", "780179148", "704008866", "703286023", "782885298",
+        "703987107", "780179148", "704008866", "703286023", "782885298"
+    ]
+
+    for index, acct in enumerate(test_list):
+        # Assign a unique phone number from the list for each index
+        acct["CONTACT"] = phone_numbers[index]
+        
+        updated_list.append(acct)
+    
     return updated_list

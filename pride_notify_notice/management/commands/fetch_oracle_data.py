@@ -12,7 +12,7 @@ class Command(BaseCommand):
             with connections['oracle'].cursor() as cursor:
                 # Updated SQL query
                 query = """
-                    SELECT COUNT(*) FROM PRIDELIVE.BIRTH_DAY
+                    SELECT * FROM PRIDELIVE.BIRTH_DAY
                 """
 
                 # PRIDELIVE.V_LOAN_ARREARS_3DAYS

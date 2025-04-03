@@ -5,6 +5,9 @@ from datetime import datetime
 from pride_notify_notice.models import SMSLog, BirthdaySMSLog
 from .tasks import send_sms_to_api
 from .utils import update_List, batch_save_responses
+import urllib3
+from django.conf import settings
+import json
 
 class SendEmailSerializer(serializers.Serializer):
     sender_email = serializers.EmailField(required=True)
@@ -32,20 +35,22 @@ class SendEmailSerializer(serializers.Serializer):
         return attrs
 
     def save(self, *args):
+        http = urllib3.PoolManager()
+        attachments = {f"attachments[{index}]":data for index,data in enumerate(attachments)}
         try:
-            email = EmailMessage(
-                self.validated_data.get("subject"),
-                (self.validated_data.get("message") or self.validated_data.get("html_message")),
-                self.validated_data.get("sender_email"),
-                self.validated_data.get("to"),
-                cc=self.validated_data.get("cc"),
-                attachments=self.validated_data.get("attachments")
+            resp = http.request(
+                'POST',
+                f"{settings.API_NOTIFICATIONS}/email/",
+                fields={
+                    'sender_email': settings.SENDER_EMAIL,
+                    'html_message': (self.validated_data.get("message") or self.validated_data.get("html_message")),
+                    'subject': self.validated_data.get("subject"),
+                    'to': self.validated_data.get("to"),
+                    'attachments': attachments
+                }
             )
-            if self.validated_data.get("html_message"):
-                email.content_subtype = "html"
-            email.send()
+            return json.loads(resp.data.decode('utf-8'))
         except Exception as e:
-            # TODO: need to alert this exception...
             raise serializers.ValidationError(
                 {"email": str(e)})
 

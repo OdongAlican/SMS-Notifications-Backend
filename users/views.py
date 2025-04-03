@@ -1,4 +1,6 @@
-from django.contrib.auth.models import Group, Permission, User
+import secrets
+from django.contrib.auth.hashers import make_password
+from django.contrib.auth.models import Group, Permission
 from rest_framework import viewsets, generics
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
@@ -6,6 +8,17 @@ from rest_framework import status
 from .serializers import GroupSerializer, PermissionSerializer, UserSerializer
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from .utils import CustomGroupPermission
+from .models import PrideUser
+from pride_notify_notice.serializers import SendEmailSerializer
+from rest_framework_simplejwt.views import TokenObtainPairView
+from rest_framework import exceptions
+from django.contrib.auth import authenticate
+from rest_framework_simplejwt.tokens import RefreshToken
+from django.conf import settings
+import urllib3
+import json
+from django.template.loader import render_to_string
+
 
 class GroupViewSet(viewsets.ModelViewSet):
     """
@@ -36,7 +49,7 @@ class AssignRoleToUserApi(generics.GenericAPIView):
 
     def post(self, request):
         try:
-            user = User.objects.get(username=request.data["username"])
+            user = PrideUser.objects.get(username=request.data["username"])
             group = Group.objects.get(name=request.data["group_name"])
 
             # Assign the group (role) to the user
@@ -46,7 +59,7 @@ class AssignRoleToUserApi(generics.GenericAPIView):
                 {"message": f"Role {group.name} has been assigned to {user.username}."},
                 status=status.HTTP_200_OK,
             )
-        except User.DoesNotExist:
+        except PrideUser.DoesNotExist:
             return Response(
                 {"error": "User not found."}, status=status.HTTP_404_NOT_FOUND
             )
@@ -64,13 +77,13 @@ class UserPermissionApi(generics.GenericAPIView):
 
     def get(self, request, username):
         try:
-            user = User.objects.get(username=username)
+            user = PrideUser.objects.get(username=username)
 
             # Get all permissions for the user's groups
             permissions = user.get_all_permissions()
 
             return Response(permissions, status=status.HTTP_200_OK)
-        except User.DoesNotExist:
+        except PrideUser.DoesNotExist:
             return Response(
                 {"error": "User not found."}, status=status.HTTP_404_NOT_FOUND
             )
@@ -168,17 +181,112 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     API endpoint for managing users.
     """
-    queryset = User.objects.all()
+    queryset = PrideUser.objects.all()
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
-    http_method_names = ['get', 'post', 'patch', 'delete']  # Allow only these HTTP methods
+    http_method_names = ['get', 'post', 'patch', 'delete']
     
     def get_permissions(self):
         """
         Custom permissions logic for user actions based on group memberships.
         """
         if self.action in ['create', 'update', 'destroy']:
-            # For create, update, or destroy actions, only users with 'admin' group can access.
             self.permission_classes = [IsAuthenticated, CustomGroupPermission]
         return super().get_permissions()
+
+
+    def create(self, request, *args, **kwargs):
+        """
+        Create a new user with an auto-generated password.
+        """
+        try:
+            password = secrets.token_urlsafe(12)
+            hashed_password = make_password(password)
+
+            username = request.data.get('username')
+            email = request.data.get('email')
+            first_name = request.data.get('first_name')
+            last_name = request.data.get('last_name')
+
+            if not all([username, email, first_name, last_name]):
+                return Response({"error": "All fields are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+            user = PrideUser.objects.create(
+                username=username,
+                email=email,
+                first_name=first_name,
+                last_name=last_name,
+                password=hashed_password,
+            )
+
+            subject = "Your account has been created"
+
+            context = {
+                "first_name": user.first_name,
+                "otp": password,
+                "link": settings.FRONTEND_URL
+            }
+
+            html_content = render_to_string("account_creation.html", context)
+
+            http = urllib3.PoolManager(cert_reqs='CERT_NONE')
+            try:
+                resp = http.request(
+                    'POST',
+                    f"{settings.API_NOTIFICATIONS}/email/",
+                    fields={
+                        'sender_email': settings.SENDER_EMAIL,
+                        'html_message': html_content,
+                        'subject': subject,
+                        'to': user.email,
+                    }
+                )
+
+
+                if resp.status != 200:
+                    return Response({"error": "User created, but email could not be sent."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+                data = json.loads(resp.data.decode('utf-8'))
+
+                return Response({
+                    "message": f"User created and {data['message']}",
+                    "username": user.username,
+                    "email": user.email,
+                }, status=status.HTTP_201_CREATED)
+
+            except urllib3.exceptions.HTTPError as http_err:
+                return Response({"error": f"Email service error: {str(http_err)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        except KeyError as key_err:
+            return Response({"error": f"Missing field: {str(key_err)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class CustomTokenObtainPairView(TokenObtainPairView):
+    def post(self, request, *args, **kwargs):
+        username = request.data.get("username")
+        password = request.data.get("password")
+
+        if not username or not password:
+            raise exceptions.AuthenticationFailed("Username and password are required.")
+
+        user = authenticate(username=username, password=password)
+
+        if user is None:
+            raise exceptions.AuthenticationFailed("Invalid credentials")
+
+        refresh = RefreshToken.for_user(user)
+        access_token = refresh.access_token
+
+        user_data = UserSerializer(user).data
+
+        response_data = {
+            "refresh": str(refresh),
+            "access": str(access_token),
+            "user": user_data
+        }
+
+        return Response(response_data)

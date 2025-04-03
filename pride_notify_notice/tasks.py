@@ -1,5 +1,5 @@
 from celery import shared_task
-from pride_notify_notice.utils import handle_loans_due, handle_birthdays, update_List
+from pride_notify_notice.utils import handle_loans_due, handle_birthdays, update_List, update_List_birthdays
 import urllib3
 from datetime import datetime
 import json
@@ -29,7 +29,7 @@ def retrieve_data():
 def retrieve_birthday_data():
     birthday_data = handle_birthdays()
 
-    updated_birthday_list = update_List(birthday_data)
+    updated_birthday_list = update_List_birthdays(birthday_data)
 
     response_data = []
 
@@ -70,7 +70,11 @@ def send_sms_to_api(self, message_detail):
             if isinstance(date_of_birth, datetime):
                 date_of_birth = date_of_birth.strftime('%Y-%m-%d')
 
-            message = f"Dear {acct_nm}, Wishing you a very happy birthday from all of us at Pride Microfinance. May this special day bring you joy and Thank you for banking with us"
+            # Extract the first name by splitting the string and taking the first part
+            name = acct_nm.split()[1]  # This will take the first word before the space
+
+            message = f"Dear {name}, Pride Wishes you a Happy Birthday &amp; a year of good health &amp; happiness. We value our relationship with you. Thank you for choosing Pride Bank."
+
             log_model = BirthdaySMSLog
 
         else:
@@ -130,7 +134,6 @@ def send_sms_to_api(self, message_detail):
         return response_data
 
     except Exception as e:
-        # Handle exception and ensure there's a valid `resp` for the response
         response_data = {
             'account_name': acct_nm,
             'phone_number': tel_number,
@@ -141,7 +144,6 @@ def send_sms_to_api(self, message_detail):
             'response_data': {"error": str(e)}
         }
 
-        # Save failed response to the appropriate log model
         if log_model == SMSLog:
             log_model.objects.create(
                 account_name=acct_nm,

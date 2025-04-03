@@ -25,12 +25,12 @@ app.config_from_object(settings, namespace='CELERY')
 app.conf.beat_schedule = {
     'send-sms-every-day-at-10': {
         'task': 'pride_notify_notice.tasks.retrieve_data',
-        'schedule': crontab(hour=15, minute=42), # Run everyday at 10:00 am
+        'schedule': crontab(hour=16, minute=13), # Run everyday at 10:00 am
         # 'schedule': crontab(minute='*/1'),  # Every 1 minutes
     },
     'send-birthday-messages-every-day-at-8': {
         'task': 'pride_notify_notice.tasks.retrieve_birthday_data',
-        'schedule': crontab(hour=12, minute=53),  # Run everyday at 3:00 pm
+        'schedule': crontab(hour=16, minute=14),  # Run everyday at 3:00 pm
     },
 }
 

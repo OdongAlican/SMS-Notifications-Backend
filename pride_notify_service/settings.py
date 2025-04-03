@@ -13,24 +13,16 @@ https://docs.djangoproject.com/en/4.0/ref/settings/
 from datetime import timedelta
 from pathlib import Path
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/4.0/howto/deployment/checklist/
-
-# SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = 'django-insecure-cfeh-ptv9kguv(kd-^%oj5$w$!5edd)2*$5b3m)(&-e@!wj((v'
 
-# SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
-
-# Application definition
+ALLOWED_HOSTS = ["*"]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
@@ -40,10 +32,8 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'corsheaders',
-    # Third party apps
     'rest_framework',
     'rest_framework.authtoken', 
-    # Local apps
     'pride_notify_notice',
     'django_celery_results',
     'django_celery_beat',
@@ -66,7 +56,7 @@ ROOT_URLCONF = 'pride_notify_service.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [os.path.join(BASE_DIR, 'pride_templates')],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -82,32 +72,27 @@ TEMPLATES = [
 WSGI_APPLICATION = 'pride_notify_service.wsgi.application'
 
 
-# Database
-# https://docs.djangoproject.com/en/4.0/ref/settings/#databases
 
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
-        'NAME': 'sms_logs',
-        'USER': 'root',
-        'PASSWORD': '12345678',
-        'HOST': 'localhost',
-        'PORT': '3306',
+        'NAME': os.environ["MYSQL_DATABASE_NAME"],
+        'USER': os.environ["MYSQL_DATABASE_USER"],
+        'PASSWORD': os.environ["MYSQL_DATABASE_PASSWORD"],
+        'HOST': os.environ["MYSQL_DATABASE_HOST"],
+        'PORT': os.environ["MYSQL_DATABASE_PORT"],
     },
     'oracle': {
         'ENGINE': 'django.db.backends.oracle',
-        'NAME': 'RUBIKON',
-        'USER': 'reports',
-        'PASSWORD': 'Today_2025',
-        'HOST': '172.16.13.10',
-        'PORT': '1521',
-        'OPTIONS': {'service_name': 'PRDTEST'},
+        'NAME': os.environ["ORACLE_DATABASE_NAME"],
+        'USER': os.environ["ORACLE_DATABASE_USER"],
+        'PASSWORD': os.environ["ORACLE_DATABASE_PASSWORD"],
+        'HOST': os.environ["ORACLE_DATABASE_HOST"],
+        'PORT': os.environ["ORACLE_DATABASE_PORT"],
+        'OPTIONS': {'service_name': os.environ["ORACLE_DATABASE_SERVICE_NAME"],},
     },
 }
 
-
-# Password validation
-# https://docs.djangoproject.com/en/4.0/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -130,7 +115,6 @@ REST_FRAMEWORK = {
     ],
 }
 
-# Optionally set JWT expiration time
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
@@ -142,13 +126,8 @@ SIMPLE_JWT = {
     'AUDIENCE': None,
     'ISSUER': None,
     'AUTH_HEADER_TYPES': ('Bearer',),
-    # 'USER_ID_FIELD': 'username',
-    # 'USER_ID_CLAIM': 'username',
 }
 
-
-# Internationalization
-# https://docs.djangoproject.com/en/4.0/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
 
@@ -159,19 +138,12 @@ USE_I18N = True
 USE_TZ = True
 
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/4.0/howto/static-files/
 
 STATIC_URL = 'static/'
 
-# Default primary key field type
-# https://docs.djangoproject.com/en/4.0/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
-
-SMS_URL = 'https://192.168.0.35/moonLight/SmsReceiver'
-SENDER_NAME ='ibank'
-SENDER_PASSWORD ='58c38dca-fc46-4018-a471-265cd7d98ab0'
+AUTH_USER_MODEL = 'users.PrideUser'
 
 CORS_ALLOWED_ORIGINS = [
     "http://localhost:3000",
@@ -179,16 +151,13 @@ CORS_ALLOWED_ORIGINS = [
 ]
 
 
-# Celery Configuration
-CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Redis broker URL
-# CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'  # Redis result backend
-CELERY_RESULT_BACKEND = 'django-db'  # Store in Django Database because of data persistance
+CELERY_BROKER_URL = 'redis://localhost:6379/0'
+CELERY_RESULT_BACKEND = 'django-db'
 CELERY_ACCEPT_CONTENT = ['application/json']
 CELERY_TASK_SERIALIZER = 'json'
 CELERY_RESULT_SERIALIZER = 'json'
 CELERY_TIMEZONE = 'Africa/Kampala'
 
-# CELERY BEAT SCHEDULER
 CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
 
 
