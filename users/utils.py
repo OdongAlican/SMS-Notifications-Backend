@@ -37,7 +37,7 @@ class CustomGroupPermission(BasePermission):
         if model:
             model_name = slugify(model.__name__)  # Get the lowercase version of the model name, e.g., 'group', 'prideuser'
 
-            if view.action == 'list' and request.method == 'GET':
+            if (view.action == 'list' or view.action == 'retrieve') and request.method == 'GET':
                 return f'view_{model_name}'
             elif view.action == 'create' and request.method == 'POST':
                 return f'add_{model_name}'

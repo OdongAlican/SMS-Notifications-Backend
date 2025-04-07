@@ -15,7 +15,6 @@ from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
 import urllib3
-import json
 from django.template.loader import render_to_string
 
 
