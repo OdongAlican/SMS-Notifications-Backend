@@ -47,12 +47,10 @@ class AssignRoleToUserApi(generics.GenericAPIView):
     """
     permission_classes = [IsAuthenticated]
 
-    def post(self, request):
+    def post(self, request,  user_id, role_id):
         try:
-            user = PrideUser.objects.get(username=request.data["username"])
-            group = Group.objects.get(name=request.data["group_name"])
-
-            # Assign the group (role) to the user
+            user = PrideUser.objects.get(id=user_id)
+            group = Group.objects.get(id=role_id)
             user.groups.add(group)
 
             return Response(
@@ -67,6 +65,33 @@ class AssignRoleToUserApi(generics.GenericAPIView):
             return Response(
                 {"error": "Group not found."}, status=status.HTTP_404_NOT_FOUND
             )
+        
+class RemoveGroupFromUserApi(generics.GenericAPIView):
+    """
+    Remove a group (role) from a user
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, user_id, role_id):
+        try:
+            user = PrideUser.objects.get(id=user_id)
+            group = Group.objects.get(id=role_id)
+
+            user.groups.remove(group)
+
+            return Response(
+                {"message": f"Role {group.name} has been removed from {user.username}."},
+                status=status.HTTP_200_OK,
+            )
+        except PrideUser.DoesNotExist:
+            return Response(
+                {"error": "User not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+        except Group.DoesNotExist:
+            return Response(
+                {"error": "Group not found."}, status=status.HTTP_404_NOT_FOUND
+            )
+
 
 # Custom view to get all permissions for a specific user
 class UserPermissionApi(generics.GenericAPIView):
@@ -181,7 +206,7 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     API endpoint for managing users.
     """
-    queryset = PrideUser.objects.all()
+    queryset = PrideUser.objects.all().prefetch_related('groups')
     serializer_class = UserSerializer
     permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
