@@ -24,7 +24,7 @@ class GroupViewSet(viewsets.ModelViewSet):
     """
     Model ViewSet for Group
     """
-    queryset = Group.objects.all()
+    queryset = Group.objects.all().prefetch_related('permissions')
     serializer_class = GroupSerializer
     permission_classes = [IsAuthenticated,CustomGroupPermission]  # Permissions to access group views
     authentication_classes = [JWTAuthentication]  # Token authentication
