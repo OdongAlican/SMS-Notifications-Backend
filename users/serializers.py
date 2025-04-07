@@ -9,17 +9,15 @@ class PermissionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Permission
-        fields = "__all__"  # Serialize all fields of the Permission model
+        fields = "__all__"
 
 class GroupSerializer(serializers.ModelSerializer):
-    permissions = PermissionSerializer(many=True, required=False)  # This will serialize the permissions
+    permissions = PermissionSerializer(many=True, required=False)
 
     class Meta:
         model = Group
         fields = ['id', 'name', 'permissions']
 
-
-# serializers.py
 
 class UserSerializer(serializers.ModelSerializer):
     groups = GroupSerializer(many=True, required=False)
