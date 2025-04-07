@@ -9,7 +9,6 @@ from .serializers import GroupSerializer, PermissionSerializer, UserSerializer
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from .utils import CustomGroupPermission
 from .models import PrideUser
-from pride_notify_notice.serializers import SendEmailSerializer
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework import exceptions
 from django.contrib.auth import authenticate
@@ -26,9 +25,9 @@ class GroupViewSet(viewsets.ModelViewSet):
     """
     queryset = Group.objects.all().prefetch_related('permissions')
     serializer_class = GroupSerializer
-    permission_classes = [IsAuthenticated,CustomGroupPermission]  # Permissions to access group views
-    authentication_classes = [JWTAuthentication]  # Token authentication
-    http_method_names = ["get", "post", "patch", "delete"]  # Allowed HTTP methods
+    permission_classes = [IsAuthenticated,CustomGroupPermission]
+    authentication_classes = [JWTAuthentication]
+    http_method_names = ["get", "post", "patch", "delete"]
 
 class PermissionViewSet(viewsets.ModelViewSet):
     """
@@ -36,21 +35,27 @@ class PermissionViewSet(viewsets.ModelViewSet):
     """
     queryset = Permission.objects.all()
     serializer_class = PermissionSerializer
-    permission_classes = [IsAuthenticated]  # Permissions to access permission views
+    permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
-    http_method_names = ["get", "post"]  # Allowed HTTP methods
+    http_method_names = ["get", "post"]
 
-# Custom view to assign a group (role) to a user
 class AssignRoleToUserApi(generics.GenericAPIView):
     """
     Assign a role (group) to a user
     """
     permission_classes = [IsAuthenticated]
 
-    def post(self, request,  user_id, role_id):
+    def post(self, request, user_id, role_id):
         try:
             user = PrideUser.objects.get(id=user_id)
             group = Group.objects.get(id=role_id)
+
+            if group in user.groups.all():
+                return Response(
+                    {"message": f"{user.username} already has the {group.name} role."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             user.groups.add(group)
 
             return Response(
@@ -65,7 +70,7 @@ class AssignRoleToUserApi(generics.GenericAPIView):
             return Response(
                 {"error": "Group not found."}, status=status.HTTP_404_NOT_FOUND
             )
-        
+          
 class RemoveGroupFromUserApi(generics.GenericAPIView):
     """
     Remove a group (role) from a user
@@ -76,6 +81,12 @@ class RemoveGroupFromUserApi(generics.GenericAPIView):
         try:
             user = PrideUser.objects.get(id=user_id)
             group = Group.objects.get(id=role_id)
+
+            if group not in user.groups.all():
+                return Response(
+                    {"message": f"{user.username} does not have the {group.name} role."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
 
             user.groups.remove(group)
 
@@ -93,40 +104,23 @@ class RemoveGroupFromUserApi(generics.GenericAPIView):
             )
 
 
-# Custom view to get all permissions for a specific user
-class UserPermissionApi(generics.GenericAPIView):
-    """
-    Get Permissions for a specific user
-    """
-    permission_classes = [IsAuthenticated]
-
-    def get(self, request, username):
-        try:
-            user = PrideUser.objects.get(username=username)
-
-            # Get all permissions for the user's groups
-            permissions = user.get_all_permissions()
-
-            return Response(permissions, status=status.HTTP_200_OK)
-        except PrideUser.DoesNotExist:
-            return Response(
-                {"error": "User not found."}, status=status.HTTP_404_NOT_FOUND
-            )
-
-
 class AssignPermissionToGroupApi(generics.GenericAPIView):
     """
     Assign a permission to a group by ID
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CustomGroupPermission]
 
     def post(self, request, role_id, permission_id):
         try:
-            # Get the group and permission objects by their IDs
             group = Group.objects.get(id=role_id)
             permission = Permission.objects.get(id=permission_id)
 
-            # Add the permission to the group
+            if permission in group.permissions.all():
+                return Response(
+                    {"message": f"Permission {permission.name} is already assigned to group {group.name}."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             group.permissions.add(permission)
 
             return Response(
@@ -147,15 +141,19 @@ class RemovePermissionFromGroupApi(generics.GenericAPIView):
     """
     Remove a permission from a group by ID
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CustomGroupPermission]
 
     def post(self, request, role_id, permission_id):
         try:
-            # Get the group and permission objects by their IDs
             group = Group.objects.get(id=role_id)
             permission = Permission.objects.get(id=permission_id)
 
-            # Remove the permission from the group
+            if permission not in group.permissions.all():
+                return Response(
+                    {"message": f"Permission {permission.name} is not assigned to group {group.name}."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
             group.permissions.remove(permission)
 
             return Response(
@@ -181,13 +179,11 @@ class UpdateGroupNameApi(generics.GenericAPIView):
         try:
             group = Group.objects.get(id=group_id)
 
-            # Get the new name from the request body
             new_name = request.data.get("new_name")
 
             if not new_name:
                 return Response({"error": "New name is required."}, status=status.HTTP_400_BAD_REQUEST)
 
-            # Update the group's name
             group.name = new_name
             group.save()
 
@@ -208,23 +204,28 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     queryset = PrideUser.objects.all().prefetch_related('groups')
     serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CustomGroupPermission]
     authentication_classes = [JWTAuthentication]
-    http_method_names = ['get', 'post', 'patch', 'delete']
+    http_method_names = ['get', 'post', 'put', 'delete']
     
     def get_permissions(self):
         """
         Custom permissions logic for user actions based on group memberships.
+        Specifically restrict the 'create' action based on group permissions.
         """
-        if self.action in ['create', 'update', 'destroy']:
+        permissions = super().get_permissions()
+        
+        if self.action == 'create':
             self.permission_classes = [IsAuthenticated, CustomGroupPermission]
-        return super().get_permissions()
+        elif self.action == 'update':
+            self.permission_classes = [IsAuthenticated, CustomGroupPermission]
+        elif self.action == 'destroy':
+            self.permission_classes = [IsAuthenticated, CustomGroupPermission]
+        
+        return permissions
 
 
     def create(self, request, *args, **kwargs):
-        """
-        Create a new user with an auto-generated password.
-        """
         try:
             password = secrets.token_urlsafe(12)
             hashed_password = make_password(password)
@@ -245,8 +246,64 @@ class UserViewSet(viewsets.ModelViewSet):
                 password=hashed_password,
             )
 
-            subject = "Your account has been created"
+            if not self.send_email_update_notification(user, password):
+                return Response({"error": "User created, but email could not be sent."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
+            return Response({
+                "message": "User created successfully and email sent.",
+                "username": user.username,
+                "email": user.email,
+            }, status=status.HTTP_201_CREATED)
+
+        except KeyError as key_err:
+            return Response({"error": f"Missing field: {str(key_err)}"}, status=status.HTTP_400_BAD_REQUEST)
+
+        except Exception as e:
+            return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+    def update(self, request, user_id=None):
+        """
+        Handle user update with email check and full user data update.
+        """
+        try:
+            user = PrideUser.objects.get(id=user_id)
+
+            new_email = request.data.get('email')
+            first_name = request.data.get('first_name', user.first_name)
+            last_name = request.data.get('last_name', user.last_name)
+
+            if new_email and new_email != user.email:
+                password = secrets.token_urlsafe(12)
+                hashed_password = make_password(password)
+
+                user.email = new_email
+                user.password = hashed_password
+                user.save()
+
+                self.send_email_update_notification(user, password)
+
+            user.first_name = first_name
+            user.last_name = last_name
+            user.save()
+
+            return Response({
+                "message": "User details updated successfully.",
+                "username": user.username,
+                "email": user.email,
+            }, status=status.HTTP_200_OK)
+
+        except PrideUser.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        except Exception as e:
+            return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+    def send_email_update_notification(self, user, password):
+        http = urllib3.PoolManager(cert_reqs='CERT_NONE')
+        try:
+            subject = "Your account has been created"
             context = {
                 "first_name": user.first_name,
                 "otp": password,
@@ -255,39 +312,20 @@ class UserViewSet(viewsets.ModelViewSet):
 
             html_content = render_to_string("account_creation.html", context)
 
-            http = urllib3.PoolManager(cert_reqs='CERT_NONE')
-            try:
-                resp = http.request(
-                    'POST',
-                    f"{settings.API_NOTIFICATIONS}/email/",
-                    fields={
-                        'sender_email': settings.SENDER_EMAIL,
-                        'html_message': html_content,
-                        'subject': subject,
-                        'to': user.email,
-                    }
-                )
+            resp = http.request(
+                'POST',
+                f"{settings.API_NOTIFICATIONS}/email/",
+                fields={
+                    'sender_email': settings.SENDER_EMAIL,
+                    'html_message': html_content,
+                    'subject': subject,
+                    'to': user.email,
+                }
+            )
 
-
-                if resp.status != 200:
-                    return Response({"error": "User created, but email could not be sent."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-                data = json.loads(resp.data.decode('utf-8'))
-
-                return Response({
-                    "message": f"User created and {data['message']}",
-                    "username": user.username,
-                    "email": user.email,
-                }, status=status.HTTP_201_CREATED)
-
-            except urllib3.exceptions.HTTPError as http_err:
-                return Response({"error": f"Email service error: {str(http_err)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-        except KeyError as key_err:
-            return Response({"error": f"Missing field: {str(key_err)}"}, status=status.HTTP_400_BAD_REQUEST)
-
-        except Exception as e:
-            return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return resp.status == 200
+        except urllib3.exceptions.HTTPError as http_err:
+            return False
 
 
 class CustomTokenObtainPairView(TokenObtainPairView):
