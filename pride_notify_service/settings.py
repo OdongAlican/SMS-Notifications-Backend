@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'django_celery_results',
     'django_celery_beat',
     'users',
+    'trails'
 ]
 
 MIDDLEWARE = [
@@ -65,6 +66,7 @@ MIDDLEWARE = [
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'trails.middleware.CurrentUserMiddleware',
 ]
 
 ROOT_URLCONF = 'pride_notify_service.urls'
