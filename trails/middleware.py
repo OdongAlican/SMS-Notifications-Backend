@@ -15,7 +15,6 @@ class CurrentUserMiddleware:
         token = request.headers.get('Authorization')
         if token and token.startswith('Bearer '):
             token = token[7:]  # Remove "Bearer " prefix
-            print(token, "Token information")
             
             try:
                 # payload = jwt.decode(token, settings.SECRET_KEY, algorithms=["HS256"])
@@ -25,7 +24,6 @@ class CurrentUserMiddleware:
 
                 if user_id:
                     user = PrideUser.objects.get(id=user_id)
-                    print(f"Authenticated user: {user}")
                     set_current_user(user)
                 else:
                     print("User ID not found in token.")

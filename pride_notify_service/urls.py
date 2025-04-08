@@ -13,5 +13,6 @@ urlpatterns = [
     path('api/v1/email/', Email.as_view()),
     path('api/v1/logs/', SMSLogsForMonthView.as_view(), name='sms-logs-month'),
     path('api/v1/birthdays/', BirthDaySMSView.as_view(), name='brithdays-sms-logs-month'),
-    path('api/v1/data/', include('users.urls'))
+    path('api/v1/data/', include('users.urls')),
+    path('api/v1/data/', include('trails.urls'))
 ]
