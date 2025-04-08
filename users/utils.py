@@ -89,5 +89,8 @@ class CustomGroupPermissionAssignment(BasePermission):
             return f'assign_permission_to_group'
         elif view.action == 'removePermission' and request.method == 'POST':
             return f'remove_permission_from_group'
-
+        elif view.action == 'assignGroup' and request.method == 'POST':
+            return f'assign_group_to_user'
+        elif view.action == 'removeGroup' and request.method == 'POST':
+            return f'remove_group_from_user'
         return None

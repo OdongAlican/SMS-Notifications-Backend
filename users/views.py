@@ -38,13 +38,13 @@ class PermissionViewSet(viewsets.ModelViewSet):
     authentication_classes = [JWTAuthentication]
     http_method_names = ["get", "post"]
 
-class AssignRoleToUserApi(generics.GenericAPIView):
+class AssignGroupToUserApi(viewsets.ViewSet):
     """
     Assign a role (group) to a user
     """
-    permission_classes = [IsAuthenticated, CustomGroupPermission]
+    permission_classes = [IsAuthenticated, CustomGroupPermissionAssignment]
 
-    def post(self, request, user_id, role_id):
+    def assignGroup(self, request, user_id, role_id):
         try:
             user = PrideUser.objects.get(id=user_id)
             group = Group.objects.get(id=role_id)
@@ -70,13 +70,13 @@ class AssignRoleToUserApi(generics.GenericAPIView):
                 {"error": "Group not found."}, status=status.HTTP_404_NOT_FOUND
             )
           
-class RemoveGroupFromUserApi(generics.GenericAPIView):
+class RemoveGroupFromUserApi(viewsets.ViewSet):
     """
     Remove a group (role) from a user
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CustomGroupPermissionAssignment]
 
-    def post(self, request, user_id, role_id):
+    def removeGroup(self, request, user_id, role_id):
         try:
             user = PrideUser.objects.get(id=user_id)
             group = Group.objects.get(id=role_id)
