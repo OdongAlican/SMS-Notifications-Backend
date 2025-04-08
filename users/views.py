@@ -7,7 +7,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from .serializers import GroupSerializer, PermissionSerializer, UserSerializer
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from .utils import CustomGroupPermission
+from .utils import CustomGroupPermission, CustomGroupPermissionAssignment
 from .models import PrideUser
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework import exceptions
@@ -42,7 +42,7 @@ class AssignRoleToUserApi(generics.GenericAPIView):
     """
     Assign a role (group) to a user
     """
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, CustomGroupPermission]
 
     def post(self, request, user_id, role_id):
         try:
@@ -103,13 +103,26 @@ class RemoveGroupFromUserApi(generics.GenericAPIView):
             )
 
 
-class AssignPermissionToGroupApi(generics.GenericAPIView):
+class AssignPermissionToGroupApi(viewsets.ViewSet):
     """
     Assign a permission to a group by ID
     """
-    permission_classes = [IsAuthenticated, CustomGroupPermission]
+    permission_classes = [IsAuthenticated, CustomGroupPermissionAssignment]
 
-    def post(self, request, role_id, permission_id):
+    def get_permissions(self):
+        """
+        Override get_permissions to pass the model to the permission class.
+        """
+        permissions = super().get_permissions()
+
+        # Explicitly set the model being worked with
+        for permission in permissions:
+            if isinstance(permission, CustomGroupPermission):
+                permission.model_info = {'group': Group, 'permission': Permission}
+
+        return permissions
+
+    def assignPermission(self, request, role_id, permission_id):
         try:
             group = Group.objects.get(id=role_id)
             permission = Permission.objects.get(id=permission_id)
@@ -140,7 +153,7 @@ class RemovePermissionFromGroupApi(generics.GenericAPIView):
     """
     Remove a permission from a group by ID
     """
-    permission_classes = [IsAuthenticated, CustomGroupPermission]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, role_id, permission_id):
         try:
