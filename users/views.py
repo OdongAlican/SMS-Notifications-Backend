@@ -109,19 +109,6 @@ class AssignPermissionToGroupApi(viewsets.ViewSet):
     """
     permission_classes = [IsAuthenticated, CustomGroupPermissionAssignment]
 
-    def get_permissions(self):
-        """
-        Override get_permissions to pass the model to the permission class.
-        """
-        permissions = super().get_permissions()
-
-        # Explicitly set the model being worked with
-        for permission in permissions:
-            if isinstance(permission, CustomGroupPermission):
-                permission.model_info = {'group': Group, 'permission': Permission}
-
-        return permissions
-
     def assignPermission(self, request, role_id, permission_id):
         try:
             group = Group.objects.get(id=role_id)
@@ -154,19 +141,6 @@ class RemovePermissionFromGroupApi(viewsets.ViewSet):
     Remove a permission from a group by ID
     """
     permission_classes = [IsAuthenticated, CustomGroupPermissionAssignment]
-
-    def get_permissions(self):
-        """
-        Override get_permissions to pass the model to the permission class.
-        """
-        permissions = super().get_permissions()
-
-        # Explicitly set the model being worked with
-        for permission in permissions:
-            if isinstance(permission, CustomGroupPermission):
-                permission.model_info = {'group': Group, 'permission': Permission}
-
-        return permissions
 
     def removePermission(self, request, role_id, permission_id):
         try:

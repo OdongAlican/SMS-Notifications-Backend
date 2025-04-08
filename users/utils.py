@@ -63,13 +63,7 @@ class CustomGroupPermissionAssignment(BasePermission):
             if not request.user.is_authenticated:
                 return False
 
-            model_info = getattr(view, 'model_info', None)
-
-            if not model_info:
-                model_info = {'group': Group, 'permission': Permission}
-
-            required_permission_codename = self.get_permission_codename(request, view, model_info)
-            print("Required Permission Codename:", required_permission_codename)
+            required_permission_codename = self.get_permission_codename(request, view)
 
             if not required_permission_codename:
                 raise PermissionDenied("No permission required or undefined action")
@@ -85,17 +79,15 @@ class CustomGroupPermissionAssignment(BasePermission):
             print(f"Unexpected error: {str(e)}")
             raise PermissionDenied("An unexpected error occurred while checking permissions.")
 
-    def get_permission_codename(self, request, view, model_info):
+    def get_permission_codename(self, request, view):
         """
         Map the HTTP method and view action to a permission codename dynamically
         based on the model and action being performed.
         """
-        model = model_info.get('group') if hasattr(view, 'action') else None
 
-        if model:
-            if view.action == 'assignPermission' and request.method == 'POST':
-                return f'assign_permission_to_group'
-            elif view.action == 'removePermission' and request.method == 'POST':
-                return f'remove_permission_from_group'
+        if view.action == 'assignPermission' and request.method == 'POST':
+            return f'assign_permission_to_group'
+        elif view.action == 'removePermission' and request.method == 'POST':
+            return f'remove_permission_from_group'
 
         return None
