@@ -6,7 +6,6 @@ from .views import (
     AssignGroupToUserApi,
     AssignPermissionToGroupApi,
     RemovePermissionFromGroupApi,
-    UpdateGroupNameApi,
     UserViewSet,
     RemoveGroupFromUserApi,
 )
@@ -21,7 +20,6 @@ urlpatterns = [
     path('remove-role/<int:user_id>/<int:role_id>/', RemoveGroupFromUserApi.as_view({'post': 'removeGroup'}), name='remove-role'),
     path('assign-permission/<int:role_id>/<int:permission_id>/', AssignPermissionToGroupApi.as_view({'post': 'assignPermission'}), name='assign-permission'),
     path('remove-permission/<int:role_id>/<int:permission_id>/', RemovePermissionFromGroupApi.as_view({'post': 'removePermission'}), name='remove-permission'),
-    path('update-group-name/<int:group_id>/', UpdateGroupNameApi.as_view(), name='update-group-name'),
     path('authentication/', include(router.urls)),
     path('users/<int:user_id>/', UserViewSet.as_view({'put': 'update'}), name='user-update'),
 ]

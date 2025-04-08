@@ -26,7 +26,7 @@ class GroupViewSet(viewsets.ModelViewSet):
     serializer_class = GroupSerializer
     permission_classes = [IsAuthenticated,CustomGroupPermission]
     authentication_classes = [JWTAuthentication]
-    http_method_names = ["get", "post", "patch", "delete"]
+    http_method_names = ["get", "post", "put", "delete"]
 
 class PermissionViewSet(viewsets.ModelViewSet):
     """
@@ -167,34 +167,6 @@ class RemovePermissionFromGroupApi(viewsets.ViewSet):
             return Response(
                 {"error": "Permission not found."}, status=status.HTTP_404_NOT_FOUND
             )
-        
-class UpdateGroupNameApi(generics.GenericAPIView):
-    """
-    Update only the name of a group, keeping permissions intact.
-    """
-    permission_classes = [IsAuthenticated]
-
-    def patch(self, request, group_id):
-        try:
-            group = Group.objects.get(id=group_id)
-
-            new_name = request.data.get("new_name")
-
-            if not new_name:
-                return Response({"error": "New name is required."}, status=status.HTTP_400_BAD_REQUEST)
-
-            group.name = new_name
-            group.save()
-
-            return Response(
-                {"message": f"Group name has been updated to {new_name}."},
-                status=status.HTTP_200_OK,
-            )
-        except Group.DoesNotExist:
-            return Response(
-                {"error": "Group not found."}, status=status.HTTP_404_NOT_FOUND
-            )
-
 
 
 class UserViewSet(viewsets.ModelViewSet):
