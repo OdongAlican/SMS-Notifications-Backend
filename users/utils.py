@@ -91,10 +91,11 @@ class CustomGroupPermissionAssignment(BasePermission):
         based on the model and action being performed.
         """
         model = model_info.get('group') if hasattr(view, 'action') else None
-        print(view.action, request.method, "Request information")
 
         if model:
             if view.action == 'assignPermission' and request.method == 'POST':
                 return f'assign_permission_to_group'
+            elif view.action == 'removePermission' and request.method == 'POST':
+                return f'remove_permission_from_group'
 
         return None
