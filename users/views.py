@@ -62,7 +62,7 @@ class AssignGroupToUserApi(viewsets.ViewSet):
             current_user = get_current_user()
 
             AuditTrail.objects.create(
-                action='ADDGROUP',
+                action='ADD',
                 model_name='PrideUser',
                 object_id=user.id,
                 user=current_user,
@@ -106,7 +106,7 @@ class RemoveGroupFromUserApi(viewsets.ViewSet):
             current_user = get_current_user()
 
             AuditTrail.objects.create(
-                action='REMOVEGROUP',
+                action='REMOVE',
                 model_name='PrideUser',
                 object_id=user.id,
                 user=current_user,
@@ -150,7 +150,7 @@ class AssignPermissionToGroupApi(viewsets.ViewSet):
 
             current_user = get_current_user()
             AuditTrail.objects.create(
-                action='ASSIGNPERMISSION',
+                action='ASSIGN',
                 model_name='Group',
                 object_id=group.id,
                 user=current_user,
@@ -195,7 +195,7 @@ class RemovePermissionFromGroupApi(viewsets.ViewSet):
             current_user = get_current_user()
 
             AuditTrail.objects.create(
-                action='REMOVEPERMISSION',
+                action='REMOVE',
                 model_name='Group',
                 object_id=group.id,
                 user=current_user,
