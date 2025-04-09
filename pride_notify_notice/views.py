@@ -9,7 +9,6 @@ from pride_notify_notice.models import SMSLog, BirthdaySMSLog
 from pride_notify_notice.serializers import SMSLogSerializer, BirthdaySMSLogSerializer
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
-from users.utils import CustomGroupPermission
 from rest_framework import viewsets
 from users.utils import CustomGroupPermissionAssignment
 

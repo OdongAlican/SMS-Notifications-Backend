@@ -18,7 +18,13 @@ import urllib3
 from django.template.loader import render_to_string
 from trails.models import AuditTrail
 from trails.threadlocals import get_current_user
+from rest_framework.pagination import PageNumberPagination
 
+
+class CustomPageNumberPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 100
 
 class GroupViewSet(viewsets.ModelViewSet):
     """
@@ -29,6 +35,7 @@ class GroupViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated,CustomGroupPermission]
     authentication_classes = [JWTAuthentication]
     http_method_names = ["get", "post", "put", "delete"]
+    pagination_class = CustomPageNumberPagination
 
 class PermissionViewSet(viewsets.ModelViewSet):
     """
@@ -227,6 +234,7 @@ class UserViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated, CustomGroupPermission]
     authentication_classes = [JWTAuthentication]
     http_method_names = ['get', 'post', 'put', 'delete']
+    pagination_class = CustomPageNumberPagination
     
     def get_permissions(self):
         """
