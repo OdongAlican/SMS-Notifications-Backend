@@ -77,7 +77,6 @@ def log_group_update(sender, instance, **kwargs):
                 new_value = getattr(instance, field_name)
                 if old_value != new_value:
                     user = get_current_user()
-                    print(user)
                     AuditTrail.objects.create(
                         action='UPDATE',
                         model_name='Group',
