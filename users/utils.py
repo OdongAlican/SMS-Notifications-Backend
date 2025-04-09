@@ -1,7 +1,6 @@
 from rest_framework.permissions import BasePermission
 from django.core.exceptions import PermissionDenied
 from django.utils.text import slugify
-from django.contrib.auth.models import Group, Permission
 
 class CustomGroupPermission(BasePermission):
     """
@@ -84,6 +83,7 @@ class CustomGroupPermissionAssignment(BasePermission):
         Map the HTTP method and view action to a permission codename dynamically
         based on the model and action being performed.
         """
+        print(view.action, request.method)
 
         if view.action == 'assignPermission' and request.method == 'POST':
             return f'assign_permission_to_group'
@@ -93,4 +93,8 @@ class CustomGroupPermissionAssignment(BasePermission):
             return f'assign_group_to_user'
         elif view.action == 'removeGroup' and request.method == 'POST':
             return f'remove_group_from_user'
+        elif view.action == 'getLoansReport' and request.method == 'GET':
+            return f'view_loan_reports'
+        elif view.action == 'getBirthdayReport' and request.method == 'GET':
+            return f'view_birthday_reports'
         return None

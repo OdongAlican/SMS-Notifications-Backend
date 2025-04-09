@@ -8,6 +8,10 @@ from datetime import datetime
 from pride_notify_notice.models import SMSLog, BirthdaySMSLog
 from pride_notify_notice.serializers import SMSLogSerializer, BirthdaySMSLogSerializer
 from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import IsAuthenticated
+from users.utils import CustomGroupPermission
+from rest_framework import viewsets
+from users.utils import CustomGroupPermissionAssignment
 
 # Create your views here.
 class Sms(views.APIView):
@@ -26,8 +30,9 @@ class Email(views.APIView):
             "success": 1,
             "message": "Email has been sent successfully"}, status=status.HTTP_200_OK)
 
-class SMSLogsForMonthView(views.APIView):
-    def get(self, request):
+class SMSLogsForMonthView(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated,CustomGroupPermissionAssignment]
+    def getLoansReport(self, request):
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
         page_size = request.query_params.get('page_size', 10)  # Default to 10 if not provided
@@ -76,8 +81,9 @@ class SMSLogsForMonthView(views.APIView):
 
         return paginator.get_paginated_response(response_data)
     
-class BirthDaySMSView(views.APIView):
-    def get(self, request):
+class BirthDaySMSView(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated,CustomGroupPermissionAssignment]
+    def getBirthdayReport(self, request):
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
         page_size = request.query_params.get('page_size', 10)  # Default to 10 if not provided
