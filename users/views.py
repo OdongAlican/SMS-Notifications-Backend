@@ -16,6 +16,8 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from django.conf import settings
 import urllib3
 from django.template.loader import render_to_string
+from trails.models import AuditTrail
+from trails.threadlocals import get_current_user
 
 
 class GroupViewSet(viewsets.ModelViewSet):
@@ -121,6 +123,17 @@ class AssignPermissionToGroupApi(viewsets.ViewSet):
                 )
 
             group.permissions.add(permission)
+
+            user = get_current_user()
+            AuditTrail.objects.create(
+                action='ASSIGN',
+                model_name='Group',
+                object_id=group.id,
+                user=user,
+                field_name='permission',
+                old_value=None,
+                new_value=permission.name,
+            )
 
             return Response(
                 {"message": f"Permission {permission.name} has been added to group {group.name}."},
