@@ -59,6 +59,18 @@ class AssignGroupToUserApi(viewsets.ViewSet):
 
             user.groups.add(group)
 
+            current_user = get_current_user()
+
+            AuditTrail.objects.create(
+                action='ADDGROUP',
+                model_name='PrideUser',
+                object_id=user.id,
+                user=current_user,
+                field_name='group',
+                old_value=None,
+                new_value=group.name,
+            )
+
             return Response(
                 {"message": f"Role {group.name} has been assigned to {user.username}."},
                 status=status.HTTP_200_OK,
@@ -90,6 +102,18 @@ class RemoveGroupFromUserApi(viewsets.ViewSet):
                 )
 
             user.groups.remove(group)
+            
+            current_user = get_current_user()
+
+            AuditTrail.objects.create(
+                action='REMOVEGROUP',
+                model_name='PrideUser',
+                object_id=user.id,
+                user=current_user,
+                field_name='group',
+                old_value=None,
+                new_value=group.name,
+            )
 
             return Response(
                 {"message": f"Role {group.name} has been removed from {user.username}."},
@@ -124,12 +148,12 @@ class AssignPermissionToGroupApi(viewsets.ViewSet):
 
             group.permissions.add(permission)
 
-            user = get_current_user()
+            current_user = get_current_user()
             AuditTrail.objects.create(
-                action='ASSIGN',
+                action='ASSIGNPERMISSION',
                 model_name='Group',
                 object_id=group.id,
-                user=user,
+                user=current_user,
                 field_name='permission',
                 old_value=None,
                 new_value=permission.name,
@@ -167,6 +191,18 @@ class RemovePermissionFromGroupApi(viewsets.ViewSet):
                 )
 
             group.permissions.remove(permission)
+
+            current_user = get_current_user()
+
+            AuditTrail.objects.create(
+                action='REMOVEPERMISSION',
+                model_name='Group',
+                object_id=group.id,
+                user=current_user,
+                field_name='permission',
+                old_value=None,
+                new_value=permission.name,
+            )
 
             return Response(
                 {"message": f"Permission {permission.name} has been removed from group {group.name}."},
