@@ -1,6 +1,36 @@
 from rest_framework.permissions import BasePermission
 from django.core.exceptions import PermissionDenied
 from django.utils.text import slugify
+from .models import TokenHistory
+
+
+class IsTokenValid(BasePermission):
+    def has_permission(self, request, view):
+        if not request.user.is_authenticated:
+            return False
+        
+        authorization = request.headers.get('Authorization')
+        if not authorization:
+            raise PermissionDenied("No authorization header provided.")
+        
+        access_token = authorization.split(' ')[1]
+
+        try:
+            # Check if the provided access token is valid and active
+            active_access_token = TokenHistory.objects.get(
+                user=request.user, access_token=access_token, is_active=True)
+
+            refresh_token = active_access_token.refresh_token
+
+            # Check if the provided refresh token is valid and active
+            active_refresh_token = TokenHistory.objects.get(
+                user=request.user, refresh_token=refresh_token, is_active=True)
+
+            return True  # Both tokens are active
+
+        except TokenHistory.DoesNotExist:
+            raise PermissionDenied("Your session has been invalidated. Please log in again.")
+
 
 class CustomGroupPermission(BasePermission):
     """

@@ -7,9 +7,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from .serializers import GroupSerializer, PermissionSerializer, UserSerializer
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from .utils import CustomGroupPermission, CustomGroupPermissionAssignment
-from .models import PrideUser
-from rest_framework_simplejwt.views import TokenObtainPairView
+from .utils import CustomGroupPermission, CustomGroupPermissionAssignment, IsTokenValid
+from .models import PrideUser, TokenHistory
+from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import exceptions
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -19,6 +19,7 @@ from django.template.loader import render_to_string
 from trails.models import AuditTrail
 from trails.threadlocals import get_current_user
 from rest_framework.pagination import PageNumberPagination
+from rest_framework_simplejwt.exceptions import TokenError
 
 
 class CustomPageNumberPagination(PageNumberPagination):
@@ -32,7 +33,7 @@ class GroupViewSet(viewsets.ModelViewSet):
     """
     queryset = Group.objects.all().prefetch_related('permissions')
     serializer_class = GroupSerializer
-    permission_classes = [IsAuthenticated,CustomGroupPermission]
+    permission_classes = [IsAuthenticated,CustomGroupPermission, IsTokenValid]
     authentication_classes = [JWTAuthentication]
     http_method_names = ["get", "post", "put", "delete"]
     pagination_class = CustomPageNumberPagination
@@ -231,7 +232,7 @@ class UserViewSet(viewsets.ModelViewSet):
     """
     queryset = PrideUser.objects.all().prefetch_related('groups')
     serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated, CustomGroupPermission]
+    permission_classes = [IsAuthenticated, CustomGroupPermission, IsTokenValid]
     authentication_classes = [JWTAuthentication]
     http_method_names = ['get', 'post', 'put', 'delete']
     pagination_class = CustomPageNumberPagination
@@ -372,12 +373,74 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         refresh = RefreshToken.for_user(user)
         access_token = refresh.access_token
 
+        # Deactivate any active tokens for the user to prevent concurrency
+        # This ensures only the most recent login will have active tokens
+        TokenHistory.objects.filter(user=user, is_active=True).update(is_active=False)
+
+        # Store the new refresh token and access token in the TokenHistory model
+        token_history = TokenHistory.objects.create(
+            user=user,
+            refresh_token=str(refresh),
+            access_token=str(access_token),
+            is_active=True
+        )
+
         user_data = UserSerializer(user).data
 
         response_data = {
             "refresh": str(refresh),
             "access": str(access_token),
-            "user": user_data
+            "user": user_data,
+            "token_history_id": token_history.id,
         }
 
         return Response(response_data)
+    
+class CustomTokenRefreshView(TokenRefreshView):
+    def post(self, request, *args, **kwargs):
+
+        refresh_token = request.data.get('refresh')
+
+        if not refresh_token:
+            raise exceptions.AuthenticationFailed("Refresh token is required.")
+
+        try:
+            # Decode the refresh token
+            refresh = RefreshToken(refresh_token)
+            print(f"Decoded refresh token: {refresh}")
+
+            # Extract user_id from token payload
+            user_id = refresh['user_id']  # Adjust this if you use a different claim for user identification
+            print(f"User ID from refresh token: {user_id}")
+
+            # Get the user object
+            user = PrideUser.objects.get(id=user_id)  # Query the user based on the user_id
+            print(f"User from database: {user}")
+
+            # Deactivate the old refresh token
+            TokenHistory.objects.filter(user=user, refresh_token=refresh_token, is_active=True).update(is_active=False)
+
+            # Create new access token
+            access_token = refresh.access_token
+
+            # Store the new token in the TokenHistory
+            TokenHistory.objects.create(
+                user=user,
+                access_token=str(access_token),
+                refresh_token=refresh_token,
+                is_active=True
+            )
+
+            return Response({
+                "access": str(access_token),
+                "refresh": str(refresh_token),
+            })
+
+        except TokenError as e:
+            print(f"TokenError: {e}")
+            raise exceptions.AuthenticationFailed("Invalid refresh token.")
+        except PrideUser.DoesNotExist:
+            raise exceptions.AuthenticationFailed("User not found.")
+        except Exception as e:
+            print(f"Unexpected error: {e}")
+            raise exceptions.AuthenticationFailed("An error occurred while refreshing the token.")

@@ -30,3 +30,15 @@ class PrideUser(AbstractUser):
         self.is_locked = False
         self.locked_until = None
         self.save()
+
+
+class TokenHistory(models.Model):
+    user = models.ForeignKey(PrideUser, on_delete=models.CASCADE)
+    refresh_token = models.CharField(max_length=255, unique=False)
+    access_token = models.CharField(max_length=255, unique=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    is_active = models.BooleanField(default=True)
+
+    def __str__(self):
+        return f"Token history for {self.user.username} - Active: {self.is_active}"
