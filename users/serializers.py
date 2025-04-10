@@ -23,4 +23,6 @@ class UserSerializer(serializers.ModelSerializer):
     groups = GroupSerializer(many=True, required=False)
     class Meta:
         model = PrideUser
-        fields = ['id', 'username', 'email', 'first_name', 'last_name', 'enabled', 'groups']
+        fields = ['id', 'username', 'email', 'first_name', 
+                  'last_name', 'enabled', 'groups', 'password_changed_at', 
+                  'password_expiry_days', 'must_change_password', 'locked_until']

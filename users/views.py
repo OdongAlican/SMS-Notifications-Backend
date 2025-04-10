@@ -7,19 +7,19 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 from .serializers import GroupSerializer, PermissionSerializer, UserSerializer
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from .utils import CustomGroupPermission, CustomGroupPermissionAssignment, IsTokenValid
-from .models import PrideUser, TokenHistory
+from .utils import CustomGroupPermission, CustomGroupPermissionAssignment, IsTokenValid, send_email_notification
+from .models import PrideUser, TokenHistory, PasswordHistory
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework import exceptions
 from django.contrib.auth import authenticate
 from rest_framework_simplejwt.tokens import RefreshToken
-from django.conf import settings
-import urllib3
-from django.template.loader import render_to_string
 from trails.models import AuditTrail
 from trails.threadlocals import get_current_user
 from rest_framework.pagination import PageNumberPagination
 from rest_framework_simplejwt.exceptions import TokenError
+from django.utils import timezone
+from rest_framework.views import APIView
+from datetime import timedelta
 
 
 class CustomPageNumberPagination(PageNumberPagination):
@@ -275,7 +275,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 password=hashed_password,
             )
 
-            if not self.send_email_update_notification(user, password):
+            if not send_email_notification(user, password):
                 return Response({"error": "User created, but email could not be sent."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             return Response({
@@ -310,7 +310,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 user.password = hashed_password
                 user.save()
 
-                self.send_email_update_notification(user, password)
+                send_email_notification(user, password)
 
             user.first_name = first_name
             user.last_name = last_name
@@ -327,35 +327,6 @@ class UserViewSet(viewsets.ModelViewSet):
 
         except Exception as e:
             return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-    def send_email_update_notification(self, user, password):
-        http = urllib3.PoolManager(cert_reqs='CERT_NONE')
-        try:
-            subject = "Your account has been created"
-            context = {
-                "first_name": user.first_name,
-                "otp": password,
-                "link": settings.FRONTEND_URL
-            }
-
-            html_content = render_to_string("account_creation.html", context)
-
-            resp = http.request(
-                'POST',
-                f"{settings.API_NOTIFICATIONS}/email/",
-                fields={
-                    'sender_email': settings.SENDER_EMAIL,
-                    'html_message': html_content,
-                    'subject': subject,
-                    'to': user.email,
-                }
-            )
-
-            return resp.status == 200
-        except urllib3.exceptions.HTTPError as http_err:
-            return False
-
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
@@ -444,3 +415,85 @@ class CustomTokenRefreshView(TokenRefreshView):
         except Exception as e:
             print(f"Unexpected error: {e}")
             raise exceptions.AuthenticationFailed("An error occurred while refreshing the token.")
+        
+class PasswordResetRequestView(APIView):
+    
+    def post(self, request):
+        """
+        Change the password of a user. The user needs to provide their current password
+        and the new password.
+        """
+        try:
+            user_id = request.data.get('user_id')
+            user = PrideUser.objects.get(id=user_id)
+            current_password = request.data.get('current_password')
+            new_password = request.data.get('new_password')
+                
+            if not current_password or not new_password:
+                return Response({"error": "Both current and new passwords are required."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Authenticate user with current password
+            if not user.check_password(current_password):
+                return Response({"error": "Current password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Call the custom change_password method
+            user.change_password(new_password)
+
+            return Response({"message": "Password changed successfully."}, status=status.HTTP_200_OK)
+            
+        except PrideUser.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+        except ValueError as ve:
+            return Response({"error": str(ve)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+class ResetTemporaryPasswordApi(APIView):
+    """
+    API for a super admin to send a new temporary password to a user.
+    """
+    permission_classes = [IsAuthenticated]  # You can restrict this to super admin group permissions if needed.
+    authentication_classes = [JWTAuthentication]
+    
+    def post(self, request):
+        """
+        Reset the temporary password for a user if the current temporary password has expired.
+        """
+        try:
+            # Get the user by ID
+            user_id = request.data.get('user_id')
+            user = PrideUser.objects.get(id=user_id)
+
+            # Check if the temporary password has expired
+            if not user.is_temporary_password_expired():
+                return Response(
+                    {"message": "Temporary password is still valid."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            # Generate a new temporary password
+            temp_password = secrets.token_urlsafe(12)
+            hashed_password = make_password(temp_password)
+
+            # Update the user with the new temporary password and set expiration to 1 hour from now
+            user.password = hashed_password
+            # user.temporary_password_expiry = timezone.now() + timedelta(hours=1)
+            user.temporary_password_expiry = timezone.now() + timedelta(minutes=5)
+            user.save()
+
+            # Send the temporary password to the user via email
+            if send_email_notification(user, temp_password):
+                return Response(
+                    {"message": "New temporary password sent to the user."},
+                    status=status.HTTP_200_OK
+                )
+            else:
+                return Response(
+                    {"error": "User created, but email could not be sent."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        except PrideUser.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+        except Exception as e:
+            return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

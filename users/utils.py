@@ -2,12 +2,19 @@ from rest_framework.permissions import BasePermission
 from django.core.exceptions import PermissionDenied
 from django.utils.text import slugify
 from .models import TokenHistory
+from django.conf import settings
+from django.template.loader import render_to_string
+import urllib3
 
 
 class IsTokenValid(BasePermission):
     def has_permission(self, request, view):
         if not request.user.is_authenticated:
             return False
+        
+        # Check if the user is enabled
+        if not request.user.enabled:
+            raise PermissionDenied("Please enable your account.")
         
         authorization = request.headers.get('Authorization')
         if not authorization:
@@ -128,3 +135,30 @@ class CustomGroupPermissionAssignment(BasePermission):
         elif view.action == 'getBirthdayReport' and request.method == 'GET':
             return f'view_birthday_reports'
         return None
+
+def send_email_notification(user, password):
+    http = urllib3.PoolManager(cert_reqs='CERT_NONE')
+    try:
+        subject = "Your account has been created"
+        context = {
+            "first_name": user.first_name,
+            "otp": password,
+            "link": settings.FRONTEND_URL
+        }
+
+        html_content = render_to_string("account_creation.html", context)
+
+        resp = http.request(
+            'POST',
+            f"{settings.API_NOTIFICATIONS}/email/",
+            fields={
+                'sender_email': settings.SENDER_EMAIL,
+                'html_message': html_content,
+                'subject': subject,
+                'to': user.email,
+            }
+        )
+
+        return resp.status == 200
+    except urllib3.exceptions.HTTPError as http_err:
+        return False
