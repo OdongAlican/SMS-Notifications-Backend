@@ -49,7 +49,7 @@ class CustomTokenObtainPairView(TokenObtainPairView):
                 user.locked_until = timezone.now() + timedelta(hours=1)
 
             user.save()
-            raise exceptions.AuthenticationFailed("Invalid credentials")
+            raise exceptions.AuthenticationFailed("Invalid credentials. Your account will be locked after 3 Invalid attempts")
 
         # If login successful: reset failed login attempts
         user.failed_login_attempts = 0
@@ -241,3 +241,33 @@ class UnlockUserAccountView(APIView):
         user.save()
 
         return Response({"message": f"User {user.username} has been unlocked."}, status=status.HTTP_200_OK)
+    
+class LockUserAccountView(APIView):
+    """
+    API view that allows a super admin to lock a user account.
+    This is intended to be used in cases where the user account needs to be deactivated.
+    """
+    permission_classes = [IsAuthenticated, IsTokenValid]
+    authentication_classes = [JWTAuthentication]
+    
+    def post(self, request, *args, **kwargs):
+        user_id = request.data.get("user_id")
+
+        if not user_id:
+            return Response({"error": "User ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = PrideUser.objects.get(id=user_id)
+        except PrideUser.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Check if the user is already locked
+        if user.is_locked:
+            return Response({"message": "User account is already locked."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Lock the user account by setting is_locked to True and defining locked_until
+        user.is_locked = True
+        user.locked_until = timezone.now() + timedelta(hours=1)  # Lock the account for 1 hour, adjust as needed
+        user.save()
+
+        return Response({"message": f"User {user.username} has been locked."}, status=status.HTTP_200_OK)
