@@ -15,6 +15,7 @@ class PrideUser(AbstractUser):
     temporary_password_expiry = models.DateTimeField(null=True, blank=True)  # Temporary password expiration
     password_reset_token = models.CharField(max_length=128, null=True, blank=True)
     password_reset_token_expiry = models.DateTimeField(null=True, blank=True)
+    failed_login_attempts = models.IntegerField(default=0)
 
     def save(self, *args, **kwargs):
         """Override save method to set enabled to False when the user is first created and set temporary password expiration."""

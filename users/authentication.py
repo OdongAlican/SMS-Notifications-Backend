@@ -14,7 +14,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from .utils import send_email_notification
+from .utils import send_email_notification, IsTokenValid
 
 class CustomTokenObtainPairView(TokenObtainPairView):
     def post(self, request, *args, **kwargs):
@@ -24,19 +24,47 @@ class CustomTokenObtainPairView(TokenObtainPairView):
         if not username or not password:
             raise exceptions.AuthenticationFailed("Username and password are required.")
 
+        try:
+            user = PrideUser.objects.get(username=username)
+        except PrideUser.DoesNotExist:
+            raise exceptions.AuthenticationFailed("Invalid credentials")
+
+        # Check if user is locked and if the lock period is still active
+        if user.is_locked and user.locked_until and user.locked_until > timezone.now():
+            remaining = (user.locked_until - timezone.now()).seconds // 60
+            raise exceptions.AuthenticationFailed(f"Account is locked. Try again in {remaining} minutes or contact admin.")
+        
+        # Authenticate user
         user = authenticate(username=username, password=password)
 
         if user is None:
+            # Increment failed login attempts only if user exists
+
+            # Get the updated user object after incrementing
+            user = PrideUser.objects.get(username=username)
+            user.failed_login_attempts += 1
+            # Lock the account after 3 failed attempts
+            if user.failed_login_attempts >= 3:
+                user.is_locked = True
+                user.locked_until = timezone.now() + timedelta(hours=1)
+
+            user.save()
             raise exceptions.AuthenticationFailed("Invalid credentials")
 
+        # If login successful: reset failed login attempts
+        user.failed_login_attempts = 0
+        user.is_locked = False
+        user.locked_until = None
+        user.save()
+
+        # Issue tokens
         refresh = RefreshToken.for_user(user)
         access_token = refresh.access_token
 
-        # Deactivate any active tokens for the user to prevent concurrency
-        # This ensures only the most recent login will have active tokens
+        # Deactivate any active tokens for the user
         TokenHistory.objects.filter(user=user, is_active=True).update(is_active=False)
 
-        # Store the new refresh token and access token in the TokenHistory model
+        # Save new tokens
         token_history = TokenHistory.objects.create(
             user=user,
             refresh_token=str(refresh),
@@ -66,15 +94,12 @@ class CustomTokenRefreshView(TokenRefreshView):
         try:
             # Decode the refresh token
             refresh = RefreshToken(refresh_token)
-            print(f"Decoded refresh token: {refresh}")
 
             # Extract user_id from token payload
             user_id = refresh['user_id']  # Adjust this if you use a different claim for user identification
-            print(f"User ID from refresh token: {user_id}")
 
             # Get the user object
             user = PrideUser.objects.get(id=user_id)  # Query the user based on the user_id
-            print(f"User from database: {user}")
 
             # Deactivate the old refresh token
             TokenHistory.objects.filter(user=user, refresh_token=refresh_token, is_active=True).update(is_active=False)
@@ -185,3 +210,34 @@ class ResetTemporaryPasswordApi(APIView):
             return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
         except Exception as e:
             return Response({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+class UnlockUserAccountView(APIView):
+    """
+    API view that allows a super admin to unlock a user account.
+    This is intended to be used in cases where the user cannot wait for the lock period to expire.
+    """
+    permission_classes = [IsAuthenticated, IsTokenValid]
+    authentication_classes = [JWTAuthentication]
+    
+    def post(self, request, *args, **kwargs):
+        user_id = request.data.get("user_id")
+
+        if not user_id:
+            return Response({"error": "User ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = PrideUser.objects.get(id=user_id)
+        except PrideUser.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        # Check if the user is locked
+        if not user.is_locked:
+            return Response({"message": "User account is not locked."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Unlock the user by setting is_locked to False and clearing the locked_until field
+        user.is_locked = False
+        user.locked_until = None
+        user.failed_login_attempts = 0
+        user.save()
+
+        return Response({"message": f"User {user.username} has been unlocked."}, status=status.HTTP_200_OK)

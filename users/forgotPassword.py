@@ -23,6 +23,9 @@ class ForgotPasswordRequestApi(APIView):
         try:
             user = PrideUser.objects.get(email=email)
 
+            if user.is_locked:
+                return Response({"message": "User account is locked. Cannot Reset Password. Please contact Admin!"}, status=status.HTTP_400_BAD_REQUEST)
+
             reset_token = secrets.token_urlsafe(64)
 
             user.password_reset_token = reset_token
