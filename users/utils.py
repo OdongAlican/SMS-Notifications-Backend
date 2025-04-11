@@ -136,18 +136,34 @@ class CustomGroupPermissionAssignment(BasePermission):
             return f'view_birthday_reports'
         return None
 
-def send_email_notification(user, password):
+def send_email_notification(user, password, action):
     http = urllib3.PoolManager(cert_reqs='CERT_NONE')
+    
     try:
-        subject = "Your account has been created"
-        context = {
-            "first_name": user.first_name,
-            "otp": password,
-            "link": settings.FRONTEND_URL
-        }
+        # Default subject, can be modified based on action
+        if action == 'authentication':
+            subject = "Your account has been created"
+            context = {
+                "first_name": user.first_name,
+                "otp": password,  # Assuming 'password' is the OTP or password-like string
+                "link": settings.FRONTEND_URL  # Link to frontend or a verification page
+            }
+            template_name = "account_creation.html"  # Template for authentication
+        elif action == 'reset':
+            subject = "Password Reset Request"
+            context = {
+                "first_name": user.first_name,
+                "reset_token": password,  # The password parameter is now treated as reset token
+                "link": f"{settings.FRONTEND_URL}/reset-password?token={password}"  # Reset password link with token
+            }
+            template_name = "password_reset_email.html"  # Template for password reset
+        else:
+            return False  # Invalid action
 
-        html_content = render_to_string("account_creation.html", context)
+        # Render the appropriate template with context
+        html_content = render_to_string(template_name, context)
 
+        # Make the HTTP request to send the email
         resp = http.request(
             'POST',
             f"{settings.API_NOTIFICATIONS}/email/",
@@ -159,6 +175,7 @@ def send_email_notification(user, password):
             }
         )
 
+        # Check if the email was sent successfully
         return resp.status == 200
     except urllib3.exceptions.HTTPError as http_err:
         return False
