@@ -7,8 +7,10 @@ from users.authentication import (
     CustomTokenRefreshView, 
     PasswordResetRequestView, 
     ResetTemporaryPasswordApi,
-    UnlockUserAccountView
-    )
+    UnlockUserAccountView,
+    DeactivateUserAccountView,
+    ActivateUserAccountView
+)
 from users.forgotPassword import ForgotPasswordRequestApi, ResetPasswordApi
 
 urlpatterns = [
@@ -19,6 +21,8 @@ urlpatterns = [
     path('api/v1/unlock-user-account/', UnlockUserAccountView.as_view(), name='unlock-account'),
     path('api/v1/forgot-password/', ForgotPasswordRequestApi.as_view(), name='forgot-password'),
     path('api/v1/reset-password/', ResetPasswordApi.as_view(), name='reset-password'),
+    path('api/v1/deactivate-user/', DeactivateUserAccountView.as_view(), name='deactivate-user'),
+    path('api/v1/activate-user/', ActivateUserAccountView.as_view(), name='activate-user'),
     path('api/v1/admin/', admin.site.urls),
     path('api/v1/sms/', Sms.as_view()),
     path('api/v1/email/', Email.as_view()),

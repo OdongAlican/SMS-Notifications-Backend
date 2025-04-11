@@ -28,6 +28,9 @@ class CustomTokenObtainPairView(TokenObtainPairView):
             user = PrideUser.objects.get(username=username)
         except PrideUser.DoesNotExist:
             raise exceptions.AuthenticationFailed("Invalid credentials")
+        
+        if user.is_deactivated:
+            raise exceptions.AuthenticationFailed("Your Account has been deactivated. Please contact Admin")
 
         # Check if user is locked and if the lock period is still active
         if user.is_locked and user.locked_until and user.locked_until > timezone.now():
@@ -165,7 +168,7 @@ class ResetTemporaryPasswordApi(APIView):
     """
     API for a super admin to send a new temporary password to a user.
     """
-    permission_classes = [IsAuthenticated]  # You can restrict this to super admin group permissions if needed.
+    permission_classes = [IsAuthenticated]
     authentication_classes = [JWTAuthentication]
     
     def post(self, request):
@@ -173,11 +176,9 @@ class ResetTemporaryPasswordApi(APIView):
         Reset the temporary password for a user if the current temporary password has expired.
         """
         try:
-            # Get the user by ID
             user_id = request.data.get('user_id')
             user = PrideUser.objects.get(id=user_id)
 
-            # Check if the temporary password has expired
             if not user.is_temporary_password_expired():
                 return Response(
                     {"message": "Temporary password is still valid."},
@@ -194,7 +195,6 @@ class ResetTemporaryPasswordApi(APIView):
             user.temporary_password_expiry = timezone.now() + timedelta(minutes=5)
             user.save()
 
-            # Send the temporary password to the user via email
             if send_email_notification(user, temp_password, "authentication"):
                 return Response(
                     {"message": "New temporary password sent to the user."},
@@ -230,21 +230,19 @@ class UnlockUserAccountView(APIView):
         except PrideUser.DoesNotExist:
             return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Check if the user is locked
         if not user.is_locked:
             return Response({"message": "User account is not locked."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Unlock the user by setting is_locked to False and clearing the locked_until field
         user.is_locked = False
         user.locked_until = None
         user.failed_login_attempts = 0
         user.save()
 
         return Response({"message": f"User {user.username} has been unlocked."}, status=status.HTTP_200_OK)
-    
-class LockUserAccountView(APIView):
+
+class DeactivateUserAccountView(APIView):
     """
-    API view that allows a super admin to lock a user account.
+    API view that allows a super admin to deactivate a user account.
     This is intended to be used in cases where the user account needs to be deactivated.
     """
     permission_classes = [IsAuthenticated, IsTokenValid]
@@ -261,13 +259,37 @@ class LockUserAccountView(APIView):
         except PrideUser.DoesNotExist:
             return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Check if the user is already locked
-        if user.is_locked:
-            return Response({"message": "User account is already locked."}, status=status.HTTP_400_BAD_REQUEST)
+        if user.is_deactivated:
+            return Response({"message": "User account is already deactivated."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Lock the user account by setting is_locked to True and defining locked_until
-        user.is_locked = True
-        user.locked_until = timezone.now() + timedelta(hours=1)  # Lock the account for 1 hour, adjust as needed
+        user.is_deactivated = True
         user.save()
 
-        return Response({"message": f"User {user.username} has been locked."}, status=status.HTTP_200_OK)
+        return Response({"message": f"User {user.username} has been deactivated."}, status=status.HTTP_200_OK)
+    
+class ActivateUserAccountView(APIView):
+    """
+    API view that allows a super admin to reactivate a user account.
+    This is intended to be used in cases where the user account was previously deactivated.
+    """
+    permission_classes = [IsAuthenticated, IsTokenValid]
+    authentication_classes = [JWTAuthentication]
+    
+    def post(self, request, *args, **kwargs):
+        user_id = request.data.get("user_id")
+
+        if not user_id:
+            return Response({"error": "User ID is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            user = PrideUser.objects.get(id=user_id)
+        except PrideUser.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        if not user.is_deactivated:
+            return Response({"message": "User account is already activated."}, status=status.HTTP_400_BAD_REQUEST)
+
+        user.is_deactivated = False
+        user.save()
+
+        return Response({"message": f"User {user.username} has been reactivated."}, status=status.HTTP_200_OK)
