@@ -7,3 +7,13 @@ packaging==24.0
 sqlparse==0.4.4
 tzdata==2024.1
 urllib3==2.2.1
+celery
+django-celery-beat
+python-dotenv
+mysqlclient
+cryptography
+django-cors-headers
+django-celery-results
+djangorestframework-simplejwt
+setuptools
+oracledb

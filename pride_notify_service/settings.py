@@ -101,13 +101,13 @@ DATABASES = {
         'PORT': decrypt_data(os.environ["MYSQL_ENCRYPT_DATABASE_PORT"]),
     },
     'oracle': {
-        'ENGINE': 'django.db.backends.oracle',
-        'NAME': decrypt_data(os.environ["ORACLE_DATABASE_NAME"]),
-        'USER': decrypt_data(os.environ["ORACLE_DATABASE_USER"]),
-        'PASSWORD': decrypt_data(os.environ["ORACLE_DATABASE_PASSWORD"]),
-        'HOST': decrypt_data(os.environ["ORACLE_DATABASE_HOST"]),
-        'PORT': decrypt_data(os.environ["ORACLE_DATABASE_PORT"]),
-        'OPTIONS': {'service_name': decrypt_data(os.environ["ORACLE_DATABASE_SERVICE_NAME"]),},
+        # 'ENGINE': 'django.db.backends.oracle',
+        # 'NAME': decrypt_data(os.environ["ORACLE_DATABASE_NAME"]),
+        # 'USER': decrypt_data(os.environ["ORACLE_DATABASE_USER"]),
+        # 'PASSWORD': decrypt_data(os.environ["ORACLE_DATABASE_PASSWORD"]),
+        # 'HOST': decrypt_data(os.environ["ORACLE_DATABASE_HOST"]),
+        # 'PORT': decrypt_data(os.environ["ORACLE_DATABASE_PORT"]),
+        # 'OPTIONS': {'service_name': decrypt_data(os.environ["ORACLE_DATABASE_SERVICE_NAME"]),},
     },
 }
 
