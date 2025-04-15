@@ -274,6 +274,10 @@ class UserViewSet(viewsets.ModelViewSet):
                 "message": "User created successfully and email sent.",
                 "username": user.username,
                 "email": user.email,
+                "id": user.id,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "enabled": user.enabled,
             }, status=status.HTTP_201_CREATED)
 
         except KeyError as key_err:
@@ -283,12 +287,12 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-    def update(self, request, user_id=None):
+    def update(self, request, pk=None):
         """
         Handle user update with email check and full user data update.
         """
         try:
-            user = PrideUser.objects.get(id=user_id)
+            user = PrideUser.objects.get(id=pk)
 
             new_email = request.data.get('email')
             first_name = request.data.get('first_name', user.first_name)
@@ -312,6 +316,10 @@ class UserViewSet(viewsets.ModelViewSet):
                 "message": "User details updated successfully.",
                 "username": user.username,
                 "email": user.email,
+                "id": user.id,
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "enabled": user.enabled,
             }, status=status.HTTP_200_OK)
 
         except PrideUser.DoesNotExist:
