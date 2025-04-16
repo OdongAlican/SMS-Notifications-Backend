@@ -42,25 +42,41 @@ class PermissionViewSet(viewsets.ModelViewSet):
 
 class AssignGroupToUserApi(viewsets.ViewSet):
     """
-    Assign a role (group) to a user
+    Assign a role (group) to a user (only one group allowed per user)
     """
     permission_classes = [IsAuthenticated, CustomGroupPermissionAssignment]
 
     def assignGroup(self, request, user_id, role_id):
         try:
             user = PrideUser.objects.get(id=user_id)
-            group = Group.objects.get(id=role_id)
+            new_group = Group.objects.get(id=role_id)
 
-            if group in user.groups.all():
+            # Check if user already has the group
+            if new_group in user.groups.all():
                 return Response(
-                    {"message": f"{user.username} already has the {group.name} role."},
+                    {"message": f"{user.username} already has the {new_group.name} role."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
-            user.groups.add(group)
-
             current_user = get_current_user()
 
+            # If user has existing groups, remove them and log audit trail
+            old_groups = user.groups.all()
+            if old_groups.exists():
+                for old_group in old_groups:
+                    user.groups.remove(old_group)
+                    AuditTrail.objects.create(
+                        action='REMOVE',
+                        model_name='PrideUser',
+                        object_id=user.id,
+                        user=current_user,
+                        field_name='group',
+                        old_value=old_group.name,
+                        new_value=None,
+                    )
+
+            # Assign new group
+            user.groups.add(new_group)
             AuditTrail.objects.create(
                 action='ADD',
                 model_name='PrideUser',
@@ -68,13 +84,14 @@ class AssignGroupToUserApi(viewsets.ViewSet):
                 user=current_user,
                 field_name='group',
                 old_value=None,
-                new_value=group.name,
+                new_value=new_group.name,
             )
 
             return Response(
-                {"message": f"Role {group.name} has been assigned to {user.username}."},
+                {"message": f"Role {new_group.name} has been assigned to {user.username}."},
                 status=status.HTTP_200_OK,
             )
+
         except PrideUser.DoesNotExist:
             return Response(
                 {"error": "User not found."}, status=status.HTTP_404_NOT_FOUND
@@ -278,6 +295,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 "first_name": user.first_name,
                 "last_name": user.last_name,
                 "enabled": user.enabled,
+                "groups": GroupSerializer(user.groups.all(), many=True).data,
             }, status=status.HTTP_201_CREATED)
 
         except KeyError as key_err:
@@ -320,6 +338,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 "first_name": user.first_name,
                 "last_name": user.last_name,
                 "enabled": user.enabled,
+                "groups": GroupSerializer(user.groups.all(), many=True).data,
             }, status=status.HTTP_200_OK)
 
         except PrideUser.DoesNotExist:
