@@ -40,7 +40,11 @@ class Command(BaseCommand):
             'add_groupaudittrail',
             'change_groupaudittrail',
             'delete_groupaudittrail',
-            'view_groupaudittrail'
+            'view_groupaudittrail',
+            'add_birthdaysmslog',
+            'change_birthdaysmslog',
+            'delete_birthdaysmslog',
+            'view_birthdaysmslog'
         ]
 
 
