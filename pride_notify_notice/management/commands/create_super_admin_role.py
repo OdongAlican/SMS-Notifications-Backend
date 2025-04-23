@@ -29,17 +29,31 @@ class Command(BaseCommand):
                 name=name,
                 content_type=content_type
             )
+        
+        # Step 4: Exclude unwanted permissions
+        # These permissions clash with add_group, change_group, delete_group and view_group in the front end.
+        excluded_codenames = [
+            'add_groupresult',
+            'change_groupresult',
+            'delete_groupresult',
+            'view_groupresult',
+            'add_groupaudittrail',
+            'change_groupaudittrail',
+            'delete_groupaudittrail',
+            'view_groupaudittrail'
+        ]
 
 
-        # Step 4: Get all permissions (default + custom)
-        all_permissions = Permission.objects.all()
+        # Step 5: Get all permissions (default + custom)
+        # all_permissions = Permission.objects.all()
+        all_permissions = Permission.objects.exclude(codename__in=excluded_codenames)
 
-        # Step 5: Create or update group
+        # Step 6: Create or update group
         group, created = Group.objects.get_or_create(name='Super Admin')
         group.permissions.set(all_permissions)
 
 
-        # Step 6: Output result
+        # Step 7: Output result
         if created:
             self.stdout.write(self.style.SUCCESS('Super Admin group created and all permissions assigned.'))
         else:
