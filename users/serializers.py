@@ -25,4 +25,4 @@ class UserSerializer(serializers.ModelSerializer):
         model = PrideUser
         fields = ['id', 'username', 'email', 'first_name', 
                   'last_name', 'enabled', 'groups', 'password_changed_at', 
-                  'password_expiry_days', 'must_change_password', 'locked_until']
+                  'password_expiry_days', 'must_change_password', 'locked_until', 'is_deactivated']
