@@ -3,6 +3,7 @@ from django.db import models
 from django.utils import timezone
 from datetime import timedelta
 from django.core.exceptions import ValidationError
+from django.contrib.auth.hashers import check_password, make_password
 
 class PrideUser(AbstractUser):
     enabled = models.BooleanField(default=False)  # Default set to False for new users
@@ -52,26 +53,26 @@ class PrideUser(AbstractUser):
         self.save()
 
     def change_password(self, new_password):
-        """Handle password change logic."""
-        # Check if temporary password has expired
-        if self.is_temporary_password_expired():
-            raise ValueError("Your temporary password has expired. Please contact the admin to reset it.")
+        """Handle password change logic with secure history tracking."""
+        # if self.is_temporary_password_expired():
+        #     raise ValueError("Your temporary password has expired. Please contact the admin to reset it.")
 
         # Check if normal password has expired
         if self.is_password_expired():
-            raise ValueError("Your normal password has expired. Please change your password.")
+            raise ValueError("Your password has expired. Please change your password.")
 
         # Check for password reuse constraint
         self.check_password_reuse(new_password)
 
-        # Track the old password before changing it
-        PasswordHistory.objects.create(user=self, password=self.password)
+        # Hash the new password before saving to history or user model
+        hashed_new_password = make_password(new_password)
 
-        # Change the password
-        self.set_password(new_password)
+        # Save the *new hashed* password into PasswordHistory
+        PasswordHistory.objects.create(user=self, password=hashed_new_password)
+
+        # Apply new password to user
+        self.password = hashed_new_password
         self.password_changed_at = timezone.now()
-
-        # After the password is changed, enable the user account
         self.enabled = True
         self.save()
 
@@ -81,13 +82,9 @@ class PrideUser(AbstractUser):
         recent_passwords = PasswordHistory.objects.filter(user=self).order_by('-created_at')[:5]
 
         for password_history in recent_passwords:
-            # Check if the password is the same as any of the last 5 passwords
-            if password_history.password == new_password:
-                raise ValidationError("You cannot reuse a password until 5 other passwords have been used.")
-
-            # Check if the password was used less than 180 days ago
-            if (timezone.now() - password_history.created_at).days < 180:
-                raise ValidationError("You cannot reuse a password within 180 days.")
+            if check_password(new_password, password_history.password):
+                if (timezone.now() - password_history.created_at).days < 180:
+                    raise ValidationError("You cannot reuse a password that was used in the last 180 days or within the last 6 passwords.")
 
 class PasswordHistory(models.Model):
     user = models.ForeignKey(PrideUser, on_delete=models.CASCADE)

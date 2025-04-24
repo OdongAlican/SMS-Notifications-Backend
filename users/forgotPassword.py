@@ -5,9 +5,8 @@ from django.utils import timezone
 import secrets
 from datetime import timedelta
 from .models import PrideUser
-from django.contrib.auth.hashers import make_password
 from .utils import send_email_notification
-
+from django.core.exceptions import ValidationError
 
 class ForgotPasswordRequestApi(APIView):
     """
@@ -68,7 +67,13 @@ class ResetPasswordApi(APIView):
             if user.password_reset_token_expiry < timezone.now():
                 return Response({"error": "Reset token has expired."}, status=status.HTTP_400_BAD_REQUEST)
 
-            user.password = make_password(new_password)
+            # Try changing password using the model's method
+            try:
+                user.change_password(new_password)
+            except ValidationError as ve:
+                return Response({"error": str(ve)}, status=status.HTTP_400_BAD_REQUEST)
+
+            # Clear reset token info after successful password change
             user.password_reset_token = None
             user.password_reset_token_expiry = None
             user.save()
