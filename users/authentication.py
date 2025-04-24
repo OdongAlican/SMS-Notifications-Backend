@@ -150,7 +150,7 @@ class PasswordResetRequestView(APIView):
 
             # Authenticate user with current password
             if not user.check_password(current_password):
-                return Response({"error": "Current password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
+                return Response({"error": "Current Temporary password is incorrect."}, status=status.HTTP_400_BAD_REQUEST)
 
             # Call the custom change_password method
             user.change_password(new_password)

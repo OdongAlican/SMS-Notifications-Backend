@@ -154,7 +154,7 @@ def send_email_notification(user, password, action):
             context = {
                 "first_name": user.first_name,
                 "reset_token": password,  # The password parameter is now treated as reset token
-                "link": f"{settings.FRONTEND_URL}/reset-password?token={password}"  # Reset password link with token
+                "link": f"{settings.FRONTEND_URL}reset-password?token={password}"  # Reset password link with token
             }
             template_name = "password_reset_email.html"  # Template for password reset
         else:
