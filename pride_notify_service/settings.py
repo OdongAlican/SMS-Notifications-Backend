@@ -31,14 +31,13 @@ def decrypt_data(encrypted_value):
     return cipher.decrypt(encrypted_value.encode()).decode()
 
 
-
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-cfeh-ptv9kguv(kd-^%oj5$w$!5edd)2*$5b3m)(&-e@!wj((v'
 
 DEBUG = True
 
-ALLOWED_HOSTS = ["*"]
+ALLOWED_HOSTS = ["cep-test.pride.co.ug'"]
 
 INSTALLED_APPS = [
     'django.contrib.admin',

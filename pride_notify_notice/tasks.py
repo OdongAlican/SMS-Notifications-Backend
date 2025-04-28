@@ -11,33 +11,33 @@ load_dotenv()
 @shared_task
 def retrieve_data():
     loan_data = handle_loans_due()
+    print("Loan Data: ", loan_data)
+    # for loan in loan_data:
+    #     loan['DUE_DT'] = loan['DUE_DT'].strftime('%Y-%m-%d')
+    #     loan['AMT_DUE'] = float(loan['AMT_DUE'])
 
-    for loan in loan_data:
-        loan['DUE_DT'] = loan['DUE_DT'].strftime('%Y-%m-%d')
-        loan['AMT_DUE'] = float(loan['AMT_DUE'])
+    # updated_loan_list = update_List(loan_data)
 
-    updated_loan_list = update_List(loan_data)
+    # response_data = []
 
-    response_data = []
-
-    for loan in updated_loan_list:
-        response = send_sms_to_api(loan)
-        if response:
-            response_data.append(response)
+    # for loan in updated_loan_list:
+    #     response = send_sms_to_api(loan)
+    #     if response:
+    #         response_data.append(response)
 
 
 @shared_task
 def retrieve_birthday_data():
     birthday_data = handle_birthdays()
+    print("Birth day data: ", birthday_data)
+    # updated_birthday_list = update_List_birthdays(birthday_data)
 
-    updated_birthday_list = update_List_birthdays(birthday_data)
+    # response_data = []
 
-    response_data = []
-
-    for birthday in updated_birthday_list:
-        response = send_sms_to_api(birthday)
-        if response:
-            response_data.append(response)
+    # for birthday in updated_birthday_list:
+    #     response = send_sms_to_api(birthday)
+    #     if response:
+    #         response_data.append(response)
 
 
 @shared_task(bind=True, max_retries=2, default_retry_delay=60)

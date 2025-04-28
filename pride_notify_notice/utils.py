@@ -1,78 +1,64 @@
-from django.db import connections
 from django.db.utils import OperationalError
 from .models import SMSLog, BirthdaySMSLog
+import os
+import requests
+from requests.auth import HTTPBasicAuth
+from cryptography.fernet import Fernet
+from dotenv import load_dotenv
+import json
+load_dotenv()
 
 def handle_loans_due(*args, **kwargs):
+        encryption_key = os.getenv("ENCRYPTION_KEY")
+
+        if encryption_key is None:
+            raise ValueError("Encryption key not found. Set ENCRYPTION_KEY in your environment variables.")
+
+        cipher = Fernet(encryption_key.encode())
+
+        def decrypt_data(encrypted_value):
+            return cipher.decrypt(encrypted_value.encode()).decode()
+        
+        external_api_url = decrypt_data(os.getenv("LOANS_DUE_ESB_URL"))
+        password = decrypt_data(os.getenv("ESB_PASSWORD"))
+        username = decrypt_data(os.getenv("ESB_USER"))
+        api_key = decrypt_data(os.getenv("API_KEY"))
+
         try:
-            with connections['oracle'].cursor() as cursor:
-                query = """
-                    SELECT 
-                        a.cust_id,
-                        cn.cust_nm,
-                        c.CONTACT AS TEL_NUMBER,
-                        b.DUE_DT,
-                        SUM(AMT_UNPAID) AS AMT_DUE
-                    FROM
-                        pridelive.ln_acct_repmnt_event b
-                    INNER JOIN
-                        pridelive.account a
-                        ON b.acct_id = a.acct_id
-                    INNER JOIN
-                        pridelive.CUSTOMER_CONTACT_MODE c
-                        ON b.acct_id = a.acct_id
-                        AND a.CUST_ID = c.CUST_ID
-                    INNER JOIN
-                        pridelive.customer cn
-                        ON cn.CUST_ID = a.CUST_ID
-                    WHERE
-                        b.REC_ST IN ('N', 'P')
-                        AND a.REC_ST IN ('A', 'B', 'Q', 'N')
-                        AND c.PREF_CONTACT_MODE = 'Y'
-                        AND AMT_UNPAID > 10000
-                        AND b.DUE_DT = (
-                            SELECT TO_DATE(display_value, 'dd/MM/yyyy')
-                            FROM pridelive.ctrl_parameter
-                            WHERE param_cd = 'S02'
-                        ) + 3
-                    GROUP BY
-                        b.DUE_DT,
-                        cn.cust_nm,
-                        c.CONTACT,
-                        a.cust_id
-                    ORDER BY
-                        a.cust_id
-                """
-
-                cursor.execute(query)
-                columns = [col[0] for col in cursor.description]
-                rows = cursor.fetchall()
-                result = []
-
-                for row in rows:
-                    row_dict = dict(zip(columns, row))
-                    result.append(row_dict)
-                return result
+            response = requests.get(f"{external_api_url}?apiKey={api_key}", auth=HTTPBasicAuth(username, password))
+            if response.status_code == 200:
+                return json.dumps(response.json(), indent=2)
+            else:
+                error_message = {'error': f'Failed to retrieve data: {response.status_code}'}
+                return json.dumps(error_message, indent=2)
         except OperationalError as e:
             print(f"Error connecting to Oracle: {e}")
             return []
 
 
 def handle_birthdays():
+        encryption_key = os.getenv("ENCRYPTION_KEY")
+
+        if encryption_key is None:
+            raise ValueError("Encryption key not found. Set ENCRYPTION_KEY in your environment variables.")
+
+        cipher = Fernet(encryption_key.encode())
+
+        def decrypt_data(encrypted_value):
+            return cipher.decrypt(encrypted_value.encode()).decode()
+        
+        external_api_url = decrypt_data(os.getenv("BIRTHDAY_ESB_URL"))
+        password = decrypt_data(os.getenv("ESB_PASSWORD"))
+        username = decrypt_data(os.getenv("ESB_USER"))
+        api_key = decrypt_data(os.getenv("API_KEY"))
+
         try:
-            with connections['oracle'].cursor() as cursor:
-                query = """
-                    SELECT * FROM PRIDELIVE.BIRTH_DAY
-                """
-
-                cursor.execute(query)
-                columns = [col[0] for col in cursor.description]
-                rows = cursor.fetchall()
-                result = []
-
-                for row in rows:
-                    row_dict = dict(zip(columns, row))
-                    result.append(row_dict)
-                return result
+            response = requests.get(f"{external_api_url}?apiKey={api_key}", auth=HTTPBasicAuth(username, password))
+            if response.status_code == 200:
+               return json.dumps(response.json(), indent=2)
+            else:
+                error_message = {'error': f'Failed to retrieve data: {response.status_code}'}
+                return json.dumps(error_message, indent=2)
         except OperationalError as e:
             print(f"Error connecting to Oracle: {e}")
         return []
@@ -119,14 +105,12 @@ def update_List(loan_details):
     test_list = loan_details[:10]
     updated_list = []
 
-    # Example list of different phone numbers
     phone_numbers = [
         "777338787", "780179148", "704008866", "703286023", "782885298",
         "703987107", "780179148", "704008866", "703286023", "782885298"
     ]
 
     for index, acct in enumerate(test_list):
-        # Assign a unique phone number from the list for each index
         acct["TEL_NUMBER"] = phone_numbers[index]
         
         updated_list.append(acct)
@@ -137,15 +121,13 @@ def update_List_birthdays(loan_details):
     test_list = loan_details[:10]
     updated_list = []
 
-    # Example list of different phone numbers
     phone_numbers = [
         "777338787", "780179148", "704008866", "703286023", "782885298",
         "703987107", "780179148", "704008866", "703286023", "782885298"
     ]
 
     for index, acct in enumerate(test_list):
-        # Assign a unique phone number from the list for each index
-        acct["CONTACT"] = phone_numbers[index]
+        acct["TEL_NUMBER"] = phone_numbers[index]
         
         updated_list.append(acct)
     

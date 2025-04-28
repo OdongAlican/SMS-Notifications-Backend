@@ -30,7 +30,7 @@ app.conf.beat_schedule = {
     },
     'send-birthday-messages-every-day-at-8': {
         'task': 'pride_notify_notice.tasks.retrieve_birthday_data',
-        'schedule': crontab(hour=16, minute=14),  # Run everyday at 3:00 pm
+        'schedule': crontab(hour=11, minute=8),  # Run everyday at 3:00 pm
     },
 }
 
