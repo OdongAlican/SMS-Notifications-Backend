@@ -37,7 +37,11 @@ SECRET_KEY = 'django-insecure-cfeh-ptv9kguv(kd-^%oj5$w$!5edd)2*$5b3m)(&-e@!wj((v
 
 DEBUG = True
 
-ALLOWED_HOSTS = ["cep-test.pride.co.ug"]
+ALLOWED_HOSTS = [
+    "cep-test.pride.co.ug",
+    "localhost",
+    "127.0.0.1"
+]
 
 INSTALLED_APPS = [
     'django.contrib.admin',
