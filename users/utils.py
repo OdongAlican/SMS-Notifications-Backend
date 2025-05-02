@@ -4,8 +4,8 @@ from django.utils.text import slugify
 from .models import TokenHistory
 from django.conf import settings
 from django.template.loader import render_to_string
-import urllib3
-
+from django.core.mail import EmailMultiAlternatives
+from django.utils.html import strip_tags
 
 class IsTokenValid(BasePermission):
     def has_permission(self, request, view):
@@ -136,46 +136,44 @@ class CustomGroupPermissionAssignment(BasePermission):
             return f'view_birthday_reports'
         return None
 
-def send_email_notification(user, password, action):
-    http = urllib3.PoolManager(cert_reqs='CERT_NONE')
-    
+def send_email_notification(user, token_or_password, action):
+
     try:
-        # Default subject, can be modified based on action
+
         if action == 'authentication':
             subject = "Your account has been created"
             context = {
                 "first_name": user.first_name,
-                "otp": password,  # Assuming 'password' is the OTP or password-like string
-                "link": settings.FRONTEND_URL  # Link to frontend or a verification page
+                "otp": token_or_password,
+                "link": settings.FRONTEND_URL
             }
-            template_name = "account_creation.html"  # Template for authentication
+            template_name = "account_creation.html"
         elif action == 'reset':
             subject = "Password Reset Request"
             context = {
                 "first_name": user.first_name,
-                "reset_token": password,  # The password parameter is now treated as reset token
-                "link": f"{settings.FRONTEND_URL}reset-password?token={password}"  # Reset password link with token
+                "reset_token": token_or_password,
+                "link": f"{settings.FRONTEND_URL}reset-password?token={token_or_password}"
             }
-            template_name = "password_reset_email.html"  # Template for password reset
+            template_name = "password_reset_email.html"
         else:
-            return False  # Invalid action
+            return False
 
-        # Render the appropriate template with context
+        # Render email content
         html_content = render_to_string(template_name, context)
+        text_content = strip_tags(html_content)  # Fallback plain text
 
-        # Make the HTTP request to send the email
-        resp = http.request(
-            'POST',
-            f"{settings.API_NOTIFICATIONS}/email/",
-            fields={
-                'sender_email': settings.SENDER_EMAIL,
-                'html_message': html_content,
-                'subject': subject,
-                'to': user.email,
-            }
+        # Create email
+        email = EmailMultiAlternatives(
+            subject=subject,
+            body=text_content,
+            from_email=settings.SENDER_EMAIL,
+            to=[user.email],
         )
+        email.attach_alternative(html_content, "text/html")
+        email.send()
 
-        # Check if the email was sent successfully
-        return resp.status == 200
-    except urllib3.exceptions.HTTPError as http_err:
+        return True
+    except Exception as e:
+        print("Error sending email:", e)
         return False

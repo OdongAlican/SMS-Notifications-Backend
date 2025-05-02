@@ -35,7 +35,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-cfeh-ptv9kguv(kd-^%oj5$w$!5edd)2*$5b3m)(&-e@!wj((v'
 
-DEBUG = True
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = decrypt_data(os.environ["EMAIL_HOST"])
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = decrypt_data(os.environ["EMAIL_HOST_USER"])
+EMAIL_HOST_PASSWORD = decrypt_data(os.environ["EMAIL_HOST_PASSWORD_ESB_URL"])
+DEBUG = False
 
 ALLOWED_HOSTS = [
     "cep-test.pride.co.ug",

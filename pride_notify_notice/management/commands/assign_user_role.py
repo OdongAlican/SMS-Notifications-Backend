@@ -7,7 +7,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **kwargs):
         # Get the superuser
-        superuser = PrideUser.objects.get(username='prideadmin')
+        superuser = PrideUser.objects.get(username='spride')
 
         # Get the Super Admin group
         super_admin_group = Group.objects.get(name='Super Admin')

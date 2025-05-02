@@ -50,19 +50,27 @@ class Command(BaseCommand):
 
             # Credentials ESB
 
-            esb_user = encrypt_data("testuing")
-            esb_password = encrypt_data("testuing")
-            api_key = encrypt_data("testuing")
-            loans_due = encrypt_data("testuing")
-            birthdays= encrypt_data("testuing")
+            # esb_user = encrypt_data("testuing")
+            # esb_password = encrypt_data("testuing")
+            # api_key = encrypt_data("testuing")
+            # loans_due = encrypt_data("testuing")
+            # birthdays= encrypt_data("testuing")
 
 
-            print(f"ESB_USER={esb_user}")
-            print(f"ESB_PASSWORD={esb_password}")
-            print(f"API_KEY={api_key}")
-            print(f"LOANS_DUE_ESB_URL={loans_due}")
-            print(f"BIRTHDAY_ESB_URL={birthdays}")
-            # print(f"MYSQL_ENCRYPT_DATABASE_PORT={db_port}")
+            # print(f"ESB_USER={esb_user}")
+            # print(f"ESB_PASSWORD={esb_password}")
+            # print(f"API_KEY={api_key}")
+            # print(f"LOANS_DUE_ESB_URL={loans_due}")
+            # print(f"BIRTHDAY_ESB_URL={birthdays}")
+
+            EMAIL_HOST = encrypt_data("Testing")
+            EMAIL_HOST_USER = encrypt_data("Testing")
+            EMAIL_HOST_PASSWORD = encrypt_data("Testing")
+
+
+            print(f"EMAIL_HOST={EMAIL_HOST}")
+            print(f"EMAIL_HOST_USER={EMAIL_HOST_USER}")
+            print(f"EMAIL_HOST_PASSWORD_ESB_URL={EMAIL_HOST_PASSWORD}")
 
         except OperationalError as e:
             self.stderr.write(f"Error connecting to Oracle: {e}")
