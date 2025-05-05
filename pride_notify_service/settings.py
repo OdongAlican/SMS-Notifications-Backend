@@ -46,7 +46,8 @@ DEBUG = False
 ALLOWED_HOSTS = [
     "cep-test.pride.co.ug",
     "localhost",
-    "127.0.0.1"
+    "127.0.0.1",
+    "cep.pride.co.ug"
 ]
 
 INSTALLED_APPS = [
