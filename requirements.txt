@@ -18,3 +18,4 @@ djangorestframework-simplejwt
 setuptools
 oracledb
 requests
+gunicorn
