@@ -35,7 +35,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = 'django-insecure-cfeh-ptv9kguv(kd-^%oj5$w$!5edd)2*$5b3m)(&-e@!wj((v'
 
-EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_BACKEND = 'pride_notify_service.email_backend.EmailBackend'
 EMAIL_HOST = decrypt_data(os.environ["EMAIL_HOST"])
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
