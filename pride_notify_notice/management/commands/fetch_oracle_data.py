@@ -1,3 +1,6 @@
+# celery -A pride_notify_service.celery worker --pool=solo -l info
+# celery -A pride_notify_service.celery beat --loglevel=info
+
 from django.core.management.base import BaseCommand
 from django.db import connections
 from django.db.utils import OperationalError

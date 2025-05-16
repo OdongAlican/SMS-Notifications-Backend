@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import json
 load_dotenv()
 
-def handle_loans_due(*args, **kwargs):
+def handle_loans_due():
         encryption_key = os.getenv("ENCRYPTION_KEY")
 
         if encryption_key is None:
@@ -25,12 +25,15 @@ def handle_loans_due(*args, **kwargs):
         api_key = decrypt_data(os.getenv("API_KEY"))
 
         try:
-            response = requests.get(f"{external_api_url}?apiKey={api_key}", auth=HTTPBasicAuth(username, password))
+            response = requests.get(
+                f"{external_api_url}?apiKey={api_key}", 
+                auth=HTTPBasicAuth(username, password),
+                timeout=20
+                )
             if response.status_code == 200:
-                return json.dumps(response.json(), indent=2)
+                return response.json()
             else:
-                error_message = {'error': f'Failed to retrieve data: {response.status_code}'}
-                return json.dumps(error_message, indent=2)
+                raise ValueError(f"Failed to retrieve data: {response.status_code}")
         except OperationalError as e:
             print(f"Error connecting to Oracle: {e}")
             return []
@@ -53,12 +56,15 @@ def handle_birthdays():
         api_key = decrypt_data(os.getenv("API_KEY"))
 
         try:
-            response = requests.get(f"{external_api_url}?apiKey={api_key}", auth=HTTPBasicAuth(username, password))
+            response = requests.get(
+                f"{external_api_url}?apiKey={api_key}", 
+                auth=HTTPBasicAuth(username, password),
+                timeout=10
+                )
             if response.status_code == 200:
-               return json.dumps(response.json(), indent=2)
+               return response.json()
             else:
-                error_message = {'error': f'Failed to retrieve data: {response.status_code}'}
-                return json.dumps(error_message, indent=2)
+                raise ValueError(f"Failed to retrieve data: {response.status_code}")
         except OperationalError as e:
             print(f"Error connecting to Oracle: {e}")
         return []
@@ -106,8 +112,8 @@ def update_List(loan_details):
     updated_list = []
 
     phone_numbers = [
-        "777338787", "780179148", "704008866", "703286023", "782885298",
-        "703987107", "780179148", "704008866", "703286023", "782885298"
+        "777338787", "777338787", "777338787", "777338787", "777338787",
+        "777338787", "777338787", "777338787", "777338787", "777338787"
     ]
 
     for index, acct in enumerate(test_list):
@@ -122,8 +128,8 @@ def update_List_birthdays(loan_details):
     updated_list = []
 
     phone_numbers = [
-        "777338787", "780179148", "704008866", "703286023", "782885298",
-        "703987107", "780179148", "704008866", "703286023", "782885298"
+        "0777338787", "0777338787", "0777338787", "0777338787", "0777338787",
+        "0777338787", "0777338787", "0777338787", "0777338787", "0777338787"
     ]
 
     for index, acct in enumerate(test_list):
