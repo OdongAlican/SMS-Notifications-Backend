@@ -80,7 +80,7 @@ def send_sms_to_api(self, message_detail):
         tel_number = ""
         message = ""
         log_model = None
-        due_date_for_db = None
+        # due_date_for_db = None
         amt_due = None
         date_of_birth = None
 
