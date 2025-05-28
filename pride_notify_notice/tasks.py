@@ -151,6 +151,8 @@ def send_sms_to_api(self, message_detail):
             'response_data': api_response
         }
 
+        print(log_model)
+        print(f"Using model: {log_model.__name__}")
         # Save to appropriate model
         if log_model == SMSLog:
             log_model.objects.create(
@@ -163,6 +165,8 @@ def send_sms_to_api(self, message_detail):
                 response_data=api_response
             )
         elif log_model == BirthdaySMSLog:
+            print(log_model, "Within Birthday")
+            print(f"LOGGING BIRTHDAY: {acct_nm}, {tel_number}, {date_of_birth}, {client_type}")
             log_model.objects.create(
                 acct_nm=acct_nm,
                 client_type=client_type,
