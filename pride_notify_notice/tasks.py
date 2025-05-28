@@ -129,18 +129,17 @@ def send_sms_to_api(self, message_detail):
         password = os.getenv("MOONLIGHT_SENDER_PASSWORD", "default_password")
         address = os.getenv("MOONLIGHT_SENDER_ADDRESS", "http://example.com/api")
 
-        # resp = http.request(
-        #     'GET',
-        #     f"{address}?sender_name={sender_name}&password={password}&recipient_addr={tel_number}&message={message}"
-        # )
+        resp = http.request(
+            'GET',
+            f"{address}?sender_name={sender_name}&password={password}&recipient_addr={tel_number}&message={message}"
+        )
 
         # Attempt to parse response
-        # try:
-        #     api_response = json.loads(resp.data.decode('utf-8'))
-        # except json.decoder.JSONDecodeError:
-        #     api_response = {"raw_response": resp.data.decode('utf-8')}
+        try:
+            api_response = json.loads(resp.data.decode('utf-8'))
+        except json.decoder.JSONDecodeError:
+            api_response = {"raw_response": resp.data.decode('utf-8')}
 
-        api_response = ""
 
         response_data = {
             'account_name': acct_nm,
