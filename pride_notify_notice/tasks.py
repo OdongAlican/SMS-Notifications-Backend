@@ -166,7 +166,7 @@ def send_sms_to_api(self, message_detail):
                 acct_nm=acct_nm,
                 client_type=client_type,
                 message=message,
-                date_of_birth=date_of_birth,
+                date_of_birth=date_of_birth_raw,
                 contact=tel_number,
                 status=api_response,
                 response_data=api_response
