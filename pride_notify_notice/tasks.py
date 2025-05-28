@@ -13,6 +13,7 @@ load_dotenv()
 def retrieve_data(self):
     try:
         loan_data = handle_loans_due()
+        print(loan_data)
         person_list = loan_data.get("Person", [])
 
         if not person_list:
@@ -42,6 +43,7 @@ def retrieve_data(self):
 def retrieve_birthday_data(self):
     try:
         birthday_data = handle_birthdays()
+        print(birthday_data)
         person_list = birthday_data.get("Person", [])
 
         if not person_list:
