@@ -107,7 +107,7 @@ def send_sms_to_api(self, message_detail):
             acct_nm = message_detail.get('FIRST_NM')
             tel_number = message_detail.get('TEL_NUMBER')
             date_of_birth_raw = message_detail.get('BIRTH_DT')
-            client_type = message_detail.get('CLIENT_TYPE')
+            client_type = message_detail.get('CLIENT_TYPE', 'CUSTOMER')
 
             try:
                 date_of_birth = parse(date_of_birth_raw).date()
@@ -129,17 +129,16 @@ def send_sms_to_api(self, message_detail):
         password = os.getenv("MOONLIGHT_SENDER_PASSWORD", "default_password")
         address = os.getenv("MOONLIGHT_SENDER_ADDRESS", "http://example.com/api")
 
-        # resp = http.request(
-        #     'GET',
-        #     f"{address}?sender_name={sender_name}&password={password}&recipient_addr={tel_number}&message={message}"
-        # )
+        resp = http.request(
+            'GET',
+            f"{address}?sender_name={sender_name}&password={password}&recipient_addr={tel_number}&message={message}"
+        )
 
         # Attempt to parse response
-        # try:
-        #     api_response = json.loads(resp.data.decode('utf-8'))
-        # except json.decoder.JSONDecodeError:
-        #     api_response = {"raw_response": resp.data.decode('utf-8')}
-        api_response= ""
+        try:
+            api_response = json.loads(resp.data.decode('utf-8'))
+        except json.decoder.JSONDecodeError:
+            api_response = {"raw_response": resp.data.decode('utf-8')}
 
         response_data = {
             'account_name': acct_nm,
@@ -151,8 +150,6 @@ def send_sms_to_api(self, message_detail):
             'response_data': api_response
         }
 
-        print(log_model)
-        print(f"Using model: {log_model.__name__}")
         # Save to appropriate model
         if log_model == SMSLog:
             log_model.objects.create(
@@ -165,8 +162,6 @@ def send_sms_to_api(self, message_detail):
                 response_data=api_response
             )
         elif log_model == BirthdaySMSLog:
-            print(log_model, "Within Birthday")
-            print(f"LOGGING BIRTHDAY: {acct_nm}, {tel_number}, {date_of_birth}, {client_type}")
             log_model.objects.create(
                 acct_nm=acct_nm,
                 client_type=client_type,
