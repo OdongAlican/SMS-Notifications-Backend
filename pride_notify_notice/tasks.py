@@ -110,10 +110,9 @@ def send_sms_to_api(self, message_detail):
             client_type = message_detail.get('CLIENT_TYPE', 'CUSTOMER')
 
             try:
-                dob_obj = parse(date_of_birth_raw) if isinstance(date_of_birth_raw, str) else date_of_birth_raw
-                date_of_birth = dob_obj.date()
+                date_of_birth = parse(date_of_birth_raw).date()
             except Exception as e:
-                print(f"Failed to parse BIRTH_DT: {e} — value: {date_of_birth_raw}")
+                print(f"Failed to parse BIRTH_DT: {e}")
                 date_of_birth = None
 
             message = (
@@ -169,7 +168,7 @@ def send_sms_to_api(self, message_detail):
                 acct_nm=acct_nm,
                 client_type=client_type,
                 message=message,
-                date_of_birth=date_of_birth,
+                date_of_birth=date_of_birth_raw,
                 contact=tel_number,
                 status=api_response,
                 response_data=api_response
