@@ -13,16 +13,16 @@ load_dotenv()
 def retrieve_data(self):
     try:
         loan_data = handle_loans_due()
-        print(loan_data)
+        # print(loan_data)
         person_list = loan_data.get("Person", [])
 
         if not person_list:
             raise ValueError("Empty 'Person' list received.")
 
-        updated_loan_list = update_List(person_list)
+        # updated_loan_list = update_List(person_list)
         response_data = []
 
-        for loan in updated_loan_list:
+        for loan in person_list:
             response = send_sms_to_api(loan)
             if response:
                 response_data.append(response)
@@ -43,16 +43,16 @@ def retrieve_data(self):
 def retrieve_birthday_data(self):
     try:
         birthday_data = handle_birthdays()
-        print(birthday_data)
+        # print(birthday_data)
         person_list = birthday_data.get("Person", [])
 
         if not person_list:
             raise ValueError("Empty 'Person' list received.")
 
-        updated_birthday_list = update_List_birthdays(person_list)
+        # updated_birthday_list = update_List_birthdays(person_list)
         response_data = []
 
-        for birthday in updated_birthday_list:
+        for birthday in person_list:
             response = send_sms_to_api(birthday)
             if response:
                 response_data.append(response)
