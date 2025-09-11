@@ -25,3 +25,15 @@ class BirthdaySMSLog(models.Model):
 
     def __str__(self):
         return f"BirthdaySMSLog for {self.acct_nm} ({self.contact})"
+
+class GroupLoanSMSLog(models.Model):
+    acct_nm = models.CharField(max_length=255)
+    group_cust_no = models.CharField(max_length=255)
+    message = models.TextField(null=True, blank=True)
+    contact = models.CharField(max_length=15)
+    response_data = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=250, null=True, blank=True)
+
+    def __str__(self):
+        return f"GroupLoanSMSLog for {self.acct_nm} ({self.group_cust_no})"

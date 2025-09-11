@@ -28,9 +28,17 @@ app.conf.beat_schedule = {
         'schedule': crontab(hour=7, minute=10), # Run everyday at 10:00 am
         # 'schedule': crontab(minute='*/1'),  # Every 1 minutes
     },
-    'send-birthday-messages-every-day-at-8': {
+    'send-birthday-messages-every-day-at-8': {  
         'task': 'pride_notify_notice.tasks.retrieve_birthday_data',
         'schedule': crontab(hour=7, minute=20),  # Run everyday at 3:00 pm
+    },
+    'send-ura-report-every-day-at-8': {
+        'task': 'pride_notify_notice.tasks.retrieve_ura_report',
+        'schedule': crontab(hour=8, minute=20),  # Run everyday at 8:20 am
+    },
+    'send-group-loans-report': {
+        'task': 'pride_notify_notice.tasks.retrieve_group_loans',
+        'schedule': crontab(hour=8, minute=40),  # Run everyday at 8:40 am
     },
 }
 
