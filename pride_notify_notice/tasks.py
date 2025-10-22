@@ -89,7 +89,7 @@ def retrieve_ura_report(self):
         ws.title = "URA Report"
         
         # Get the initial ledger balance from the first transaction for opening balance
-        opening_balance = float(report_list[0].get('LEDGER_BAL', 0)) if report_list else 0
+        opening_balance = float(report_list[0].get('OPENING_BALANCE', 0)) if report_list else 0
         
         # Extract GL Account Number from first item
         gl_account_no = report_list[0].get('GL_ACCT_NO', 'N/A') if report_list else 'N/A'
@@ -371,7 +371,15 @@ def send_sms_to_api(self, message_detail):
         date_of_birth = None
         group_cust_no = None
 
-        if 'AMT_DUE' in message_detail:
+        # Handle custom messages (New condition for insurance messages)
+        if 'CUSTOM_MESSAGE' in message_detail:
+            acct_nm = message_detail.get('CUST_NM')
+            tel_number = message_detail.get('TEL_NUMBER')
+            # Use the custom message directly
+            message = message_detail.get('CUSTOM_MESSAGE')
+            log_model = SMSLog  # Use standard SMS log for custom messages
+
+        elif 'AMT_DUE' in message_detail:
             # Loan due message handling (existing code)
             acct_nm = message_detail.get('CUST_NM')
             tel_number = message_detail.get('TEL_NUMBER')
@@ -485,7 +493,7 @@ def send_sms_to_api(self, message_detail):
                 phone_number=tel_number,
                 message=message,
                 due_date=due_dt_for_db,
-                amount_due=amt_due,
+                amount_due=amt_due or 0,
                 status=api_response,
                 response_data=api_response
             )

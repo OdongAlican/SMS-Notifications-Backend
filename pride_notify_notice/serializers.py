@@ -65,28 +65,47 @@ class LoanDueSerializer(serializers.Serializer):
             return value.strftime('%Y-%m-%d')
         return value
 
+class IndividualMessageSerializer(serializers.Serializer):
+    No = serializers.CharField(required=True)
+    Name = serializers.CharField(required=True)
+    Number = serializers.CharField(required=True)
+    Message = serializers.CharField(required=True)
+
+
 class SendSMSSerializer(serializers.Serializer):
-    loansdue = LoanDueSerializer(many=True, required=True)
-
-    def format_amount_due(self, amt_due: float) -> str:
-        """Format amount due for SMS message."""
-        rounded_amt_due = round(amt_due)
-        return "{:,}".format(rounded_amt_due)
-
+    individualMessage = IndividualMessageSerializer(many=True, required=True)
 
     def save(self, *args, **kwargs):
-        loan_details = self.validated_data.get('loansdue')
-        new_list = update_List(loan_details)
-
+        individual_messages = self.validated_data.get('individualMessage')
+        print(individual_messages)
+        
         task_results = []
-
-        for loan in new_list:
-            # task_results.append(send_sms_to_api.apply_async(args=[loan]))
-            response = send_sms_to_api(loan)
+        
+        for message_data in individual_messages:
+            # Format phone number - add country code if needed and clean non-breaking spaces
+            phone_number = str(message_data['Number']).strip().replace('\xa0', '')
+            
+            # Add country code (256) if not present and remove leading zero if needed
+            if phone_number.startswith('0'):
+                phone_number = f"256{phone_number[1:]}"
+            elif not phone_number.startswith('256'):
+                phone_number = f"256{phone_number}"
+            
+            # Create a message detail object for the SMS API
+            message_detail = {
+                'CUST_NM': message_data['Name'],
+                'TEL_NUMBER': phone_number,
+                'CUSTOM_MESSAGE': message_data['Message']  # Use custom message field
+            }
+            
+            # Send SMS using the API
+            response = send_sms_to_api(message_detail)
             if response:
                 task_results.append(response)
-
-        batch_save_responses(task_results)
+        
+        # Save responses to database if applicable
+        if task_results:
+            batch_save_responses(task_results)
         
         return Response(task_results)
     
