@@ -13,6 +13,17 @@ class SMSLog(models.Model):
     def __str__(self):
         return f"SMSLog for {self.account_name} ({self.phone_number})"
 
+class GroupSMSLog(models.Model):
+    account_name = models.CharField(max_length=255)
+    phone_number = models.CharField(max_length=255)
+    message = models.TextField()
+    status = models.CharField(max_length=50)
+    response_data = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"GroupSMSLog for {self.account_name} ({self.phone_number})"
+
 class BirthdaySMSLog(models.Model):
     acct_nm = models.CharField(max_length=255)
     client_type = models.CharField(max_length=255)

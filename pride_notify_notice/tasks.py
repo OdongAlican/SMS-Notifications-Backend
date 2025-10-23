@@ -3,7 +3,7 @@ from pride_notify_notice.utils import handle_loans_due, handle_birthdays, handle
 import urllib3
 from datetime import datetime
 import json
-from .models import GroupLoanSMSLog, SMSLog, BirthdaySMSLog
+from .models import GroupLoanSMSLog, SMSLog, BirthdaySMSLog, GroupSMSLog
 from dateutil.parser import parse
 import os
 from dotenv import load_dotenv
@@ -377,7 +377,7 @@ def send_sms_to_api(self, message_detail):
             tel_number = message_detail.get('TEL_NUMBER')
             # Use the custom message directly
             message = message_detail.get('CUSTOM_MESSAGE')
-            log_model = SMSLog  # Use standard SMS log for custom messages
+            log_model = GroupSMSLog  # Use standard SMS log for custom messages
 
         elif 'AMT_DUE' in message_detail:
             # Loan due message handling (existing code)
@@ -494,6 +494,15 @@ def send_sms_to_api(self, message_detail):
                 message=message,
                 due_date=due_dt_for_db,
                 amount_due=amt_due or 0,
+                status=api_response,
+                response_data=api_response
+            )
+        # Save to appropriate model
+        elif log_model == GroupSMSLog:
+            log_model.objects.create(
+                account_name=acct_nm,
+                phone_number=tel_number,
+                message=message,
                 status=api_response,
                 response_data=api_response
             )
