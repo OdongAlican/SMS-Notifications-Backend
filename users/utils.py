@@ -136,6 +136,12 @@ class CustomGroupPermissionAssignment(BasePermission):
             return f'view_birthday_reports'
         elif view.action == 'getGroupReport' and request.method == 'GET':
             return f'view_birthday_reports'  ## Adjust if different permission is needed
+        elif view.action == 'exportLoansReport' and request.method == 'GET':
+            return f'view_loan_reports'
+        elif view.action == 'exportBirthdayReport' and request.method == 'GET':
+            return f'view_birthday_reports'
+        elif view.action == 'exportGroupReport' and request.method == 'GET':
+            return f'view_birthday_reports'  ## Adjust if different permission is needed
         return None
 
 def send_email_notification(user, token_or_password, action):

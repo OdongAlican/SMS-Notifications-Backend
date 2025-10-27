@@ -31,6 +31,14 @@ class Email(views.APIView):
 
 class SMSLogsForMonthView(viewsets.ViewSet):
     permission_classes = [IsAuthenticated,CustomGroupPermissionAssignment]
+
+    def _get_filtered_loan_logs(self, start_date, end_date):
+        """Helper method to get filtered logs based on date range"""
+        return SMSLog.objects.filter(
+            created_at__gte=start_date,
+            created_at__lte=end_date
+        ).order_by('-created_at')  # Adding ordering to fix the warning
+    
     def getLoansReport(self, request):
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
@@ -80,8 +88,45 @@ class SMSLogsForMonthView(viewsets.ViewSet):
 
         return paginator.get_paginated_response(response_data)
     
+    def exportLoansReport(self, request):
+        """Export all loan SMS logs based on date range as JSON"""
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+
+        if not start_date or not end_date:
+            return Response({"error": "Please provide both start_date and end_date."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            start_date = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
+            end_date = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d'))
+            end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+        except ValueError:
+            return Response({"error": "Invalid date format. Please use 'YYYY-MM-DD'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get all logs without pagination
+        logs = self._get_filtered_loan_logs(start_date, end_date)
+        serializer = SMSLogSerializer(logs, many=True)
+        
+        # Return all data for export
+        return Response({
+            "data": serializer.data,
+            "count": logs.count(),
+            "date_range": {
+                "start_date": start_date.strftime('%Y-%m-%d'),
+                "end_date": end_date.strftime('%Y-%m-%d')
+            }
+        })
+    
 class BirthDaySMSView(viewsets.ViewSet):
     permission_classes = [IsAuthenticated,CustomGroupPermissionAssignment]
+
+    def _get_filtered_birthday_logs(self, start_date, end_date):
+        """Helper method to get filtered birthday logs based on date range"""
+        return BirthdaySMSLog.objects.filter(
+            created_at__gte=start_date,
+            created_at__lte=end_date
+        ).order_by('-created_at')  # Adding ordering to fix the warning
+    
     def getBirthdayReport(self, request):
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
@@ -131,8 +176,45 @@ class BirthDaySMSView(viewsets.ViewSet):
 
         return paginator.get_paginated_response(response_data)
     
+    def exportBirthdayReport(self, request):
+        """Export all birthday SMS logs based on date range as JSON"""
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+
+        if not start_date or not end_date:
+            return Response({"error": "Please provide both start_date and end_date."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            start_date = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
+            end_date = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d'))
+            end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+        except ValueError:
+            return Response({"error": "Invalid date format. Please use 'YYYY-MM-DD'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get all logs without pagination
+        logs = self._get_filtered_birthday_logs(start_date, end_date)
+        serializer = BirthdaySMSLogSerializer(logs, many=True)
+        
+        # Return all data for export
+        return Response({
+            "data": serializer.data,
+            "count": logs.count(),
+            "date_range": {
+                "start_date": start_date.strftime('%Y-%m-%d'),
+                "end_date": end_date.strftime('%Y-%m-%d')
+            }
+        })
+    
 class GroupSMSView(viewsets.ViewSet):
     permission_classes = [IsAuthenticated,CustomGroupPermissionAssignment]
+
+    def _get_filtered_group_logs(self, start_date, end_date):
+        """Helper method to get filtered group logs based on date range"""
+        return GroupSMSLog.objects.filter(
+            created_at__gte=start_date,
+            created_at__lte=end_date
+        ).order_by('-created_at')  # Adding ordering to fix the warning
+    
     def getGroupReport(self, request):
         start_date = request.query_params.get('start_date')
         end_date = request.query_params.get('end_date')
@@ -182,3 +264,33 @@ class GroupSMSView(viewsets.ViewSet):
         }
 
         return paginator.get_paginated_response(response_data)
+    
+    
+    def exportGroupReport(self, request):
+        """Export all group SMS logs based on date range as JSON"""
+        start_date = request.query_params.get('start_date')
+        end_date = request.query_params.get('end_date')
+
+        if not start_date or not end_date:
+            return Response({"error": "Please provide both start_date and end_date."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            start_date = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
+            end_date = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d'))
+            end_date = end_date.replace(hour=23, minute=59, second=59, microsecond=999999)
+        except ValueError:
+            return Response({"error": "Invalid date format. Please use 'YYYY-MM-DD'."}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Get all logs without pagination
+        logs = self._get_filtered_group_logs(start_date, end_date)
+        serializer = GroupSMSLogSerializer(logs, many=True)
+        
+        # Return all data for export
+        return Response({
+            "data": serializer.data,
+            "count": logs.count(),
+            "date_range": {
+                "start_date": start_date.strftime('%Y-%m-%d'),
+                "end_date": end_date.strftime('%Y-%m-%d')
+            }
+        })
