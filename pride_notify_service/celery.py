@@ -25,20 +25,20 @@ app.config_from_object(settings, namespace='CELERY')
 app.conf.beat_schedule = {
     'send-sms-every-day-at-10': {
         'task': 'pride_notify_notice.tasks.retrieve_data',
-        'schedule': crontab(hour=7, minute=10), # Run everyday at 10:00 am
+        'schedule': crontab(hour=7, minute=30), # Run everyday at 10:00 am
         # 'schedule': crontab(minute='*/1'),  # Every 1 minutes
     },
     'send-birthday-messages-every-day-at-8': {  
         'task': 'pride_notify_notice.tasks.retrieve_birthday_data',
-        'schedule': crontab(hour=7, minute=20),  # Run everyday at 3:00 pm
+        'schedule': crontab(hour=7, minute=20),  # Run everyday at 7:20 am
     },
     'send-ura-report-every-day-at-8': {
         'task': 'pride_notify_notice.tasks.retrieve_ura_report',
-        'schedule': crontab(hour=8, minute=20),  # Run everyday at 8:20 am
+        'schedule': crontab(hour=6, minute=10),  # Run everyday at 6:10 am
     },
     'send-group-loans-report': {
         'task': 'pride_notify_notice.tasks.retrieve_group_loans',
-        'schedule': crontab(hour=8, minute=40),  # Run everyday at 8:40 am
+        'schedule': crontab(hour=8, minute=17),  # Run everyday at 8:17 am
     },
 }
 
