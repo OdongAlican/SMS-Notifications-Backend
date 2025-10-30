@@ -324,7 +324,7 @@ def send_csv_report_email(recipient_email, subject, message, csv_file_path):
 
 
 
-@shared_task(bind=True, max_retries=5, default_retry_delay=300)
+@shared_task(bind=True, max_retries=2, default_retry_delay=60)
 def retrieve_group_loans(self):
     try:
         group_loans_data = handle_group_loans()
