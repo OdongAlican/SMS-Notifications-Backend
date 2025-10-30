@@ -28,7 +28,8 @@ def handle_loans_due():
             response = requests.get(
                 f"{external_api_url}?apiKey={api_key}", 
                 auth=HTTPBasicAuth(username, password),
-                timeout=20
+                timeout=20,
+                verify=False
                 )
             if response.status_code == 200:
                 return response.json()
@@ -59,7 +60,8 @@ def handle_birthdays():
             response = requests.get(
                 f"{external_api_url}?apiKey={api_key}", 
                 auth=HTTPBasicAuth(username, password),
-                timeout=10
+                timeout=10,
+                verify=False
                 )
             if response.status_code == 200:
                return response.json()
