@@ -19,3 +19,4 @@ setuptools
 oracledb
 requests
 gunicorn
+openpyxl

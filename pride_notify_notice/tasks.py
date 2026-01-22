@@ -1,5 +1,5 @@
 from celery import shared_task
-from pride_notify_notice.utils import handle_loans_due, handle_birthdays, handle_URA_reports, handle_group_loans, update_group_loans
+from pride_notify_notice.utils import handle_Escrow_notifications, handle_loans_due, handle_birthdays, handle_URA_reports, handle_group_loans, update_group_loans
 import urllib3
 from datetime import datetime
 import json
@@ -73,6 +73,313 @@ def retrieve_birthday_data(self):
         print(f"Unexpected error occurred: {exc}")
         raise self.retry(exc=exc)
 
+@shared_task(bind=True, max_retries=5, default_retry_delay=300)
+def retrieve_escrow_notifications(self):
+    try:
+        escrow_data = handle_Escrow_notifications()
+        print(escrow_data)
+
+        # Normalize input to a list of transactions
+        if isinstance(escrow_data, list):
+            notifications = escrow_data
+        elif isinstance(escrow_data, dict):
+            notifications = (
+                escrow_data.get("statement")
+                or escrow_data.get("Report")
+                or escrow_data.get("data")
+                or []
+            )
+        else:
+            notifications = []
+
+        if not notifications:
+            raise ValueError("Empty 'Notifications' list received.")
+
+        # Build Excel workbook borrowing layout from provided PDF
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "MTN Escrow Statement"
+
+        # Extract header-level details from first record where available
+        first = next((n for n in notifications if isinstance(n, dict)), {})
+        acct_name = (first.get('ACCT_NM') or '').strip()
+        address = (first.get('ADDR_LINE_1') or '').strip()
+        branch_name = (first.get('BU_NM') or '').strip()
+        account_no = (first.get('ACT_NO') or '').strip()
+        product = (first.get('PROD_DESC') or '').strip()
+        currency = (first.get('CRNCY_NM') or first.get('CRNCY_CD_ISO') or '').strip()
+        bank_name = (first.get('BANK_NAME') or 'Pride Bank').strip()
+
+        # Determine date range
+        def safe_parse_date(dt):
+            try:
+                if not dt:
+                    return None
+                return parse(str(dt))
+            except Exception:
+                return None
+
+        dates = [safe_parse_date(n.get('TRAN_DT')) for n in notifications if isinstance(n, dict)]
+        dates = [d for d in dates if d is not None]
+        from_date = min(dates).strftime('%d/%m/%Y') if dates else ''
+        to_date = max(dates).strftime('%d/%m/%Y') if dates else ''
+        printed_on = datetime.now().strftime('%d/%m/%Y')
+
+        # Opening/Closing and totals (fallbacks if missing)
+        def to_float(val):
+            try:
+                if val in (None, ''):
+                    return 0.0
+                return float(str(val).replace(',', ''))
+            except Exception:
+                return 0.0
+
+        opening_balance = to_float(first.get('OPENIING_BAL')) or to_float(first.get('OPENING_BAL'))
+        # closing_balance = to_float(first.get('CLOSING_BAL')) or (to_float(notifications[-1].get('STMNT_BAL')) if notifications else 0.0)
+
+        total_debits = sum(to_float(n.get('DEBIT_AMT')) for n in notifications)
+        total_credits = sum(to_float(n.get('CREDIT_AMT')) for n in notifications)
+        count_debits = sum(1 for n in notifications if to_float(n.get('DEBIT_AMT')) > 0)
+        count_credits = sum(1 for n in notifications if to_float(n.get('CREDIT_AMT')) > 0)
+
+        # Title
+        ws.append(["MTN Escrow Transaction Statement"])
+        ws.merge_cells('A1:N1')
+        ws['A1'].font = Font(bold=True, size=14)
+        ws['A1'].alignment = Alignment(horizontal='center')
+
+        # Modern, two-column header block (clean professional styling)
+        # Left column fields
+        left_rows = [
+            ("Acct Name", acct_name),
+            ("Address", address),
+            ("Branch Name", branch_name),
+            ("Account No", account_no),
+            ("Product", product),
+        ]
+        # Right column fields
+        right_rows = [
+            ("Currency", currency),
+            ("From Date", from_date),
+            ("To Date", to_date),
+            ("Bank", bank_name),
+            ("Printed On", printed_on),
+        ]
+
+        # Column layout: A(Label) B-C(Value) D(Spacer) E(Label) F-H(Value)
+        ws.column_dimensions['A'].width = 18
+        ws.column_dimensions['B'].width = 28
+        ws.column_dimensions['C'].width = 6
+        ws.column_dimensions['D'].width = 4
+        ws.column_dimensions['E'].width = 18
+        ws.column_dimensions['F'].width = 28
+        ws.column_dimensions['G'].width = 6
+        ws.column_dimensions['H'].width = 4
+
+        label_fill = PatternFill(start_color="EEF2F7", end_color="EEF2F7", fill_type="solid")
+        value_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
+        header_border = Border(
+            left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin')
+        )
+
+        start_row = 3
+        # Render left column
+        for i, (label, value) in enumerate(left_rows):
+            r = start_row + i
+            # Label cell
+            lc = ws.cell(row=r, column=1, value=f"{label}:")
+            lc.font = Font(bold=True)
+            lc.alignment = Alignment(horizontal='left', vertical='center')
+            lc.fill = label_fill
+            lc.border = header_border
+            # Value cells (merge B:C)
+            ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=3)
+            vc = ws.cell(row=r, column=2, value=value)
+            vc.alignment = Alignment(horizontal='left', vertical='center')
+            vc.fill = value_fill
+            vc.border = header_border
+
+        # Render right column
+        for i, (label, value) in enumerate(right_rows):
+            r = start_row + i
+            rc = ws.cell(row=r, column=5, value=f"{label}:")
+            rc.font = Font(bold=True)
+            rc.alignment = Alignment(horizontal='left', vertical='center')
+            rc.fill = label_fill
+            rc.border = header_border
+            ws.merge_cells(start_row=r, start_column=6, end_row=r, end_column=8)
+            rv = ws.cell(row=r, column=6, value=value)
+            rv.alignment = Alignment(horizontal='left', vertical='center')
+            rv.fill = value_fill
+            rv.border = header_border
+
+        # Add subtle spacing below header block
+        ws.append([""])
+
+        # Opening balance line
+        ws.append([""])
+        ws.append([f"Opening balance : {opening_balance:,.2f}"])
+        ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
+        ws[ f'A{ws.max_row}' ].font = Font(bold=True)
+
+        # Table headers
+        ws.append([""])
+        headers = [
+            "Transaction Date", "Value Date", "Bank Reference", "MTN Reference", "MSISDN",
+            "Transaction Description", "Dr / Cr", "Debit", "Credit", "Balance",
+            "CBS Status", "Prefunding", "Posted By", "Branch"
+        ]
+        ws.append(headers)
+        header_row_idx = ws.max_row
+        for col_num in range(1, len(headers) + 1):
+            cell = ws.cell(row=header_row_idx, column=col_num)
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal='center')
+
+        # Data rows
+        amount_cols = {8, 9, 10}  # Debit, Credit, Balance
+
+        # Ensure chronological order
+        def sort_key(n):
+            dt = safe_parse_date(n.get('TRAN_DT')) if isinstance(n, dict) else None
+            return dt or datetime.min
+        notifications_sorted = sorted(notifications, key=sort_key)
+
+        # Initialize running balance from opening balance
+        running_balance = opening_balance
+
+        for n in notifications_sorted:
+            if not isinstance(n, dict):
+                continue
+            tran_dt = safe_parse_date(n.get('TRAN_DT'))
+            value_dt = safe_parse_date(n.get('VALUE_DT'))
+            tran_dt_s = tran_dt.strftime('%d/%m/%Y') if tran_dt else ''
+            value_dt_s = value_dt.strftime('%d/%m/%Y') if value_dt else ''
+
+            tran_desc = n.get('TRAN_DESC') or ''
+            reference = n.get('TRAN_REF_TXT') or ''
+            bank_ref = n.get('SETTLEMENT_BANK_REF') or ''
+            drcr = (n.get('DR_CR_IND') or ('DR' if to_float(n.get('DEBIT_AMT')) > 0 else 'CR' if to_float(n.get('CREDIT_AMT')) > 0 else '')).strip()
+            debit = to_float(n.get('DEBIT_AMT'))
+            credit = to_float(n.get('CREDIT_AMT'))
+
+            # Calculate running balance: opening + credits - debits
+            running_balance = running_balance + credit - debit
+            balance = running_balance
+            cbs_status = n.get('CBS_Status') or ''
+            prefunding = (n.get('PREFUNDING_BRANCH') or '').strip()
+            posted_by = (n.get('POSTED_BY') or n.get('USER_NAME') or '').strip()
+            branch = (n.get('BU_NM') or '').strip()
+            msisdn = (n.get('CONTACT') or '').strip()
+
+            row = [
+                tran_dt_s,
+                value_dt_s,
+                str(reference),
+                str(bank_ref),
+                msisdn,
+                tran_desc,
+                drcr,
+                debit,
+                credit,
+                balance,
+                cbs_status,
+                prefunding,
+                posted_by,
+                branch,
+            ]
+            ws.append(row)
+
+        # Format numeric columns
+        for r in ws.iter_rows(min_row=header_row_idx + 1, max_row=ws.max_row, min_col=1, max_col=len(headers)):
+            for idx, cell in enumerate(r, start=1):
+                if idx in amount_cols:
+                    cell.number_format = '#,##0.00'
+
+        # Auto-fit columns
+        for col_cells in ws.columns:
+            max_length = 0
+            col_letter = get_column_letter(col_cells[0].column)
+            for cell in col_cells:
+                try:
+                    if cell.value:
+                        max_length = max(max_length, len(str(cell.value)))
+                except Exception:
+                    pass
+            ws.column_dimensions[col_letter].width = min(max_length + 2, 60)
+
+        # Borders and zebra stripes
+        thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+        for row in ws.iter_rows(min_row=header_row_idx, max_row=ws.max_row, min_col=1, max_col=len(headers)):
+            for cell in row:
+                cell.border = thin_border
+
+        for row_idx in range(header_row_idx + 1, ws.max_row + 1):
+            if row_idx % 2 == 0:
+                for col_idx in range(1, len(headers) + 1):
+                    ws.cell(row=row_idx, column=col_idx).fill = PatternFill(start_color="F7F7F7", end_color="F7F7F7", fill_type="solid")
+
+        # Summary footer similar to PDF
+        ws.append([""])
+        ws.append([f"Debit(s) - {count_debits}  Credit(s) - {count_credits}"])
+        ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
+        ws[ f'A{ws.max_row}' ].font = Font(bold=True)
+
+        # Totals line: place values under Debit/Credit/Balance columns
+        totals_row_idx = ws.max_row + 1
+        ws.cell(row=totals_row_idx, column=1, value="Total :- ").font = Font(bold=True)
+        ws.cell(row=totals_row_idx, column=8, value=total_debits).number_format = '#,##0.00'
+        ws.cell(row=totals_row_idx, column=9, value=total_credits).number_format = '#,##0.00'
+        ws.cell(row=totals_row_idx, column=10, value=(running_balance if notifications_sorted else opening_balance)).number_format = '#,##0.00'
+
+        # Closing balance line
+        ws.append([""])
+        ws.append([f"Closing { (running_balance if notifications_sorted else opening_balance):,.2f}"])
+        ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
+        ws[ f'A{ws.max_row}' ].font = Font(bold=True)
+
+        # Footer: printed by / verified by (dummy where missing)
+        # printed_by = next((n.get('POSTED_BY') for n in notifications_sorted if (n.get('POSTED_BY') or '').strip()), None) or (first.get('USER_NAME') or 'SYSTEM SYSTEM')
+        ws.append([""])
+        # ws.append([f"Printed By : {printed_by}"])
+        ws.append([f"Printed By : CUSTOMER ENGAGEMENT SYSTEM"])
+        ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
+        ws.append([f"Print Date: {datetime.now().strftime('%d-%b-%Y')} "])
+        ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
+        ws.append(["Verified By: CUSTOMER ENGAGEMENT SYSTEM"])
+        ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
+
+        # Save file
+        excel_filename = f"mtn_escrow_statement_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        wb.save(excel_filename)
+
+        # Send the Excel file via email (same helper used by URA report)
+        send_csv_report_email(
+            recipient_email=getattr(settings, 'URA_REPORT_EMAILS', []),
+            subject=f"Daily MTN Escrow Statement - {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}",
+            message="Dear Valued Partner, \nPlease find the attached MTN Escrow statement.",
+            csv_file_path=excel_filename
+        )
+
+        print(f"Escrow statement saved to {excel_filename}")
+        return [{
+            'filename': excel_filename,
+            'content': f"Escrow statement generated and saved to {excel_filename}",
+            'totals': {
+                'debits': total_debits,
+                'credits': total_credits,
+                'count_debits': count_debits,
+                'count_credits': count_credits,
+            }
+        }]
+
+    except (ValueError) as e:
+        print(f"Data error: {e}")
+        raise self.retry(exc=e)
+
+    except Exception as exc:
+        print(f"Unexpected error occurred: {exc}")
+        raise self.retry(exc=exc)
 
 @shared_task(bind=True, max_retries=5, default_retry_delay=300)
 def retrieve_ura_report(self):

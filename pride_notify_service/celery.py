@@ -40,8 +40,12 @@ app.conf.beat_schedule = {
         'task': 'pride_notify_notice.tasks.retrieve_group_loans',
         'schedule': crontab(hour=8, minute=17),  # Run everyday at 8:17 am
     },
+    'send-escrow-notifications': {
+        'task': 'pride_notify_notice.tasks.retrieve_escrow_notifications',
+        'schedule': crontab(hour=9, minute=18),  # Run everyday at 9:18 am
+    },
 }
-
+    
 # Load task modules from all registered Django app configs.
 app.autodiscover_tasks()
 

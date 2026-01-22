@@ -71,6 +71,37 @@ def handle_birthdays():
             print(f"Error connecting to Oracle: {e}")
         return []
 
+def handle_Escrow_notifications():
+        encryption_key = os.getenv("ENCRYPTION_KEY")
+
+        if encryption_key is None:
+            raise ValueError("Encryption key not found. Set ENCRYPTION_KEY in your environment variables.")
+
+        cipher = Fernet(encryption_key.encode())
+
+        def decrypt_data(encrypted_value):
+            return cipher.decrypt(encrypted_value.encode()).decode()
+
+        external_api_url = decrypt_data(os.getenv("ESCROW_NOTIFICATIONS"))
+        password = decrypt_data(os.getenv("ESB_PASSWORD"))
+        username = decrypt_data(os.getenv("ESB_USER"))
+        api_key = decrypt_data(os.getenv("API_KEY"))
+
+        try:
+            response = requests.get(
+                f"{external_api_url}?apiKey={api_key}", 
+                auth=HTTPBasicAuth(username, password),
+                timeout=10,
+                verify=False  # Disable SSL verification for testing purposes
+                )
+            if response.status_code == 200:
+               return response.json()
+            else:
+                raise ValueError(f"Failed to retrieve data: {response.status_code}")
+        except OperationalError as e:
+            print(f"Error connecting to Oracle: {e}")
+        return []
+
 def handle_URA_reports():
         encryption_key = os.getenv("ENCRYPTION_KEY")
 
