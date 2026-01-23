@@ -48,3 +48,21 @@ class GroupLoanSMSLog(models.Model):
 
     def __str__(self):
         return f"GroupLoanSMSLog for {self.acct_nm} ({self.group_cust_no})"
+    
+
+class ATMExpirySMSLog(models.Model):
+    cust_id = models.CharField(max_length=50)
+    cust_no = models.CharField(max_length=50)
+    pan_masked = models.CharField(max_length=20)
+    card_title = models.CharField(max_length=255)
+    requested_date = models.DateField(null=True, blank=True)
+    expiry_date = models.DateField(null=True, blank=True)
+    transaction_acct = models.CharField(max_length=50)
+    mobile_contact = models.CharField(max_length=15)
+    message = models.TextField(null=True, blank=True)
+    response_data = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=50, null=True, blank=True)
+
+    def __str__(self):
+        return f"ATMExpirySMSLog for {self.card_title} ({self.mobile_contact})"

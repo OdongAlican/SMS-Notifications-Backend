@@ -1,9 +1,9 @@
 from celery import shared_task
-from pride_notify_notice.utils import handle_Escrow_notifications, handle_loans_due, handle_birthdays, handle_URA_reports, handle_group_loans, update_group_loans
+from pride_notify_notice.utils import handle_ATM_expiry, handle_Escrow_notifications, handle_loans_due, handle_birthdays, handle_URA_reports, handle_group_loans, update_ATM_expiry, update_group_loans
 import urllib3
 from datetime import datetime
 import json
-from .models import GroupLoanSMSLog, SMSLog, BirthdaySMSLog, GroupSMSLog
+from .models import ATMExpirySMSLog, GroupLoanSMSLog, SMSLog, BirthdaySMSLog, GroupSMSLog
 from dateutil.parser import parse
 import os
 from dotenv import load_dotenv
@@ -73,6 +73,36 @@ def retrieve_birthday_data(self):
         print(f"Unexpected error occurred: {exc}")
         raise self.retry(exc=exc)
 
+
+@shared_task(bind=True, max_retries=5, default_retry_delay=300)
+def retrieve_atm_expiry_notifications(self):
+    try:
+        atm_expiry_data = handle_ATM_expiry()
+        # print(atm_expiry_data)
+        person_list = atm_expiry_data.get("Person", [])
+
+        if not person_list:
+            raise ValueError("Empty 'Person' list received.")
+
+        updated_atm_expiry_list = update_ATM_expiry(person_list)
+
+        response_data = []
+        for atm_expiry in updated_atm_expiry_list:
+            response = send_sms_to_api(atm_expiry)
+            if response:
+                response_data.append(response)
+
+        return response_data
+
+    except (ValueError) as e:
+        print(f"Data error: {e}")
+        raise self.retry(exc=e)
+
+    except Exception as exc:
+        print(f"Unexpected error occurred: {exc}")
+        raise self.retry(exc=exc)
+    
+    
 @shared_task(bind=True, max_retries=5, default_retry_delay=300)
 def retrieve_escrow_notifications(self):
     try:
@@ -355,7 +385,7 @@ def retrieve_escrow_notifications(self):
 
         # Send the Excel file via email (same helper used by URA report)
         send_csv_report_email(
-            recipient_email=getattr(settings, 'URA_REPORT_EMAILS', []),
+            recipient_email=getattr(settings, 'ESCROW_REPORT_EMAILS', []),
             subject=f"Daily MTN Escrow Statement - {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}",
             message="Dear Valued Partner, \nPlease find the attached MTN Escrow statement.",
             csv_file_path=excel_filename
@@ -763,6 +793,25 @@ def send_sms_to_api(self, message_detail):
             )
             log_model = GroupLoanSMSLog
 
+        elif "CARD_TITLE" in message_detail:
+            # ATM card expiry message
+            pan = message_detail.get('PAN_MASKED')
+            tel_number = message_detail.get('MOBILE_CONTACT')
+            card_title = message_detail.get('CARD_TITLE').split()[0]
+            card_title = card_title.replace(',', '')  # Remove comma if present
+    
+            try:
+                date_of_birth = parse(date_of_birth_raw).date()
+            except Exception as e:
+                print(f"Failed to parse BIRTH_DT: {e}")
+                date_of_birth = None
+
+            message = (
+                f"Dear {card_title}, your ATM card ending with **{pan[-4:]} will expire at the end of this month. "
+                "Please visit your nearest branch to renew. Never share your PIN."
+            )
+            log_model = ATMExpirySMSLog
+
         else:
             raise ValueError("Invalid message_detail format: no recognized fields found.")
 
@@ -828,6 +877,14 @@ def send_sms_to_api(self, message_detail):
             log_model.objects.create(
                 acct_nm=acct_nm,
                 group_cust_no=group_cust_no,
+                message=message,
+                contact=tel_number,
+                status=api_response,
+                response_data=api_response
+            )
+        elif log_model == ATMExpirySMSLog:
+            log_model.objects.create(
+                acct_nm=card_title,
                 message=message,
                 contact=tel_number,
                 status=api_response,

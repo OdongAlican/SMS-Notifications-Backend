@@ -1,4 +1,5 @@
 from django.db.utils import OperationalError
+from django.conf import settings
 from .models import SMSLog, BirthdaySMSLog
 import os
 import requests
@@ -165,6 +166,37 @@ def handle_group_loans():
         return []
 
 
+def handle_ATM_expiry():
+        encryption_key = os.getenv("ENCRYPTION_KEY")
+
+        if encryption_key is None:
+            raise ValueError("Encryption key not found. Set ENCRYPTION_KEY in your environment variables.")
+
+        cipher = Fernet(encryption_key.encode())
+
+        def decrypt_data(encrypted_value):
+            return cipher.decrypt(encrypted_value.encode()).decode()
+
+        external_api_url = decrypt_data(os.getenv("ATM_EXPIRY_ESB_URL"))
+        password = decrypt_data(os.getenv("ESB_PASSWORD"))
+        username = decrypt_data(os.getenv("ESB_USER"))
+        api_key = decrypt_data(os.getenv("API_KEY"))
+
+        try:
+            response = requests.get(
+                f"{external_api_url}?apiKey={api_key}", 
+                auth=HTTPBasicAuth(username, password),
+                timeout=30,
+                verify=False  # Disable SSL verification for testing purposes
+                )
+            if response.status_code == 200:
+               return response.json()
+            else:
+                raise ValueError(f"Failed to retrieve data: {response.status_code}")
+        except OperationalError as e:
+            print(f"Error connecting to Oracle: {e}")
+        return []
+
 
 def batch_save_responses(response_data):
     response_objects_sms_log = []
@@ -223,13 +255,23 @@ def update_List_birthdays(loan_details):
     test_list = loan_details[:10]
     updated_list = []
 
-    phone_numbers = [
-        "703286023", "0753615464", "704008866", "703987107", "0777338787",
-        "0777338787", "0755619185", "780179148", "0777338787", "703286023"
-    ]
+    phone_numbers = getattr(settings, 'TEST_USERS_CONTACTS', [])
 
     for index, acct in enumerate(test_list):
         acct["TEL_NUMBER"] = phone_numbers[index]
+        
+        updated_list.append(acct)
+    
+    return updated_list
+
+def update_ATM_expiry(loan_details):
+    test_list = loan_details[:10]
+    updated_list = []
+
+    phone_numbers = getattr(settings, 'TEST_USERS_CONTACTS', [])
+
+    for index, acct in enumerate(test_list):
+        acct["MOBILE_CONTACT"] = phone_numbers[index]
         
         updated_list.append(acct)
     
@@ -239,10 +281,7 @@ def update_group_loans(loan_details):
     test_list = loan_details[:10]
     updated_list = []
 
-    phone_numbers = [
-        "0703286023", "0782885298", "0703286023", "0703286023", "0757346350",
-        "777338787", "0782885298", "0782885298", "0776694688", "0782885298"
-    ]
+    phone_numbers = getattr(settings, 'TEST_USERS_CONTACTS', [])
 
     for index, acct in enumerate(test_list):
         acct["PHONE"] = phone_numbers[index]
