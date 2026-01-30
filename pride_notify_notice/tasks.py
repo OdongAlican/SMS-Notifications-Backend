@@ -661,21 +661,22 @@ def send_csv_report_email(recipient_email, subject, message, csv_file_path):
 
 
 
-@shared_task(bind=True, max_retries=2, default_retry_delay=60)
+@shared_task(bind=True, max_retries=5, default_retry_delay=300)
 def retrieve_group_loans(self):
     try:
         group_loans_data = handle_group_loans()
-        # print(group_loans_data)
+        # print("Group Loans Datat",group_loans_data)
         person_list = group_loans_data.get("Report", [])
-        # print(person_list)
+        # print("Filtered Persons List",person_list)
 
         if not person_list:
             raise ValueError("Empty 'Person' list received.")
 
-        updated_birthday_list = update_group_loans(person_list)
+        # updated_birthday_list = update_group_loans(person_list)
+        # print(updated_birthday_list)
         response_data = []
 
-        for group_loan in updated_birthday_list:
+        for group_loan in person_list:
             response = send_sms_to_api(group_loan)
             if response:
                 response_data.append(response)
@@ -729,7 +730,7 @@ def send_sms_to_api(self, message_detail):
 
             formatted_amt_due = "{:,}".format(round(amt_due))
             message = (
-                f"Dear {acct_nm}, your loan installment of {formatted_amt_due} UGX is due on {due_dt_for_sms}. "
+                f"Dear {acct_nm}, your loan instalment is due on {due_dt_for_sms}. "
                 "Thank you for banking with us. Toll Free: 0800333999"
             )
             log_model = SMSLog
@@ -788,9 +789,10 @@ def send_sms_to_api(self, message_detail):
                 formatted_date = datetime.now().strftime('%d-%m-%Y')
             
             message = (
-                f"Dear {display_name}, your a/c has been credited with UGX {formatted_total} on {formatted_date}. "
+                f"Dear {display_name}, your CEC/MEC collection of Shs {formatted_total} has been received on {formatted_date}. "
                 "For Help Call 0800333999. Never share your ATM/Mobile PIN."
             )
+            print("Generated group loan message:", message)
             log_model = GroupLoanSMSLog
 
         elif "CARD_TITLE" in message_detail:

@@ -154,7 +154,7 @@ def handle_group_loans():
             response = requests.get(
                 f"{external_api_url}?apiKey={api_key}", 
                 auth=HTTPBasicAuth(username, password),
-                timeout=30,
+                timeout=20,
                 verify=False  # Disable SSL verification for testing purposes
                 )
             if response.status_code == 200:
