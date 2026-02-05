@@ -107,18 +107,24 @@ def retrieve_atm_expiry_notifications(self):
 def retrieve_escrow_notifications(self):
     try:
         escrow_data = handle_Escrow_notifications()
-        print(escrow_data)
+        print(f"Escrow data received: {escrow_data}")
 
         # Normalize input to a list of transactions
         if isinstance(escrow_data, list):
             notifications = escrow_data
         elif isinstance(escrow_data, dict):
-            notifications = (
+            payload = (
                 escrow_data.get("statement")
                 or escrow_data.get("Report")
                 or escrow_data.get("data")
                 or []
             )
+            if isinstance(payload, dict):
+                notifications = [payload]
+            elif isinstance(payload, list):
+                notifications = payload
+            else:
+                notifications = []
         else:
             notifications = []
 
@@ -129,6 +135,7 @@ def retrieve_escrow_notifications(self):
         wb = Workbook()
         ws = wb.active
         ws.title = "MTN Escrow Statement"
+        print(f"Total notifications to process: {len(notifications)}")
 
         # Extract header-level details from first record where available
         first = next((n for n in notifications if isinstance(n, dict)), {})
