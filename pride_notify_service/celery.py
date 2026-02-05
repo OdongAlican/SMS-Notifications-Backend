@@ -48,8 +48,8 @@ app.conf.beat_schedule = {
     'send-atm-expiry-notifications': {
         'task': 'pride_notify_notice.tasks.retrieve_atm_expiry_notifications',
         # 'schedule': crontab(hour=9, minute=10),  # Run everyday at 9:10 am
-        # 'schedule': crontab(hour=9, minute=0, day_of_month='15'),  # Run on the 15th of every month at 9:00 am
-        'schedule': crontab(hour=8, minute=0, day_of_month='2'),  # Run on the 2nd of every month at 8:00 am
+        'schedule': crontab(hour=9, minute=0, day_of_month='15'),  # Run on the 15th of every month at 9:00 am
+        # 'schedule': crontab(hour=8, minute=0, day_of_month='2'),  # Run on the 2nd of every month at 8:00 am
     },
 }
     

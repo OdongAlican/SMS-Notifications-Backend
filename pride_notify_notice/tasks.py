@@ -84,10 +84,10 @@ def retrieve_atm_expiry_notifications(self):
         if not person_list:
             raise ValueError("Empty 'Person' list received.")
 
-        updated_atm_expiry_list = update_ATM_expiry(person_list)
+        # updated_atm_expiry_list = update_ATM_expiry(person_list)
 
         response_data = []
-        for atm_expiry in updated_atm_expiry_list:
+        for atm_expiry in person_list:
             response = send_sms_to_api(atm_expiry)
             if response:
                 response_data.append(response)
