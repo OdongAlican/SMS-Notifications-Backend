@@ -302,7 +302,8 @@ def retrieve_escrow_notifications(self):
 
             # Calculate running balance: opening + credits - debits
             running_balance = running_balance + credit - debit
-            balance = running_balance
+            # Balance column must map to CBS STMNT_BAL
+            balance = to_float(n.get('STMNT_BAL'))
             cbs_status = n.get('CBS_Status') or ''
             prefunding = (n.get('PREFUNDING_BRANCH') or '').strip()
             posted_by = (n.get('POSTED_BY') or n.get('USER_NAME') or '').strip()
@@ -367,11 +368,13 @@ def retrieve_escrow_notifications(self):
         ws.cell(row=totals_row_idx, column=1, value="Total :- ").font = Font(bold=True)
         ws.cell(row=totals_row_idx, column=8, value=total_debits).number_format = '#,##0.00'
         ws.cell(row=totals_row_idx, column=9, value=total_credits).number_format = '#,##0.00'
-        ws.cell(row=totals_row_idx, column=10, value=(running_balance if notifications_sorted else opening_balance)).number_format = '#,##0.00'
+        last_txn = next((x for x in reversed(notifications_sorted) if isinstance(x, dict)), None)
+        closing_balance = to_float(last_txn.get('CLOSING_BAL')) if last_txn else (running_balance if notifications_sorted else opening_balance)
+        ws.cell(row=totals_row_idx, column=10, value=closing_balance).number_format = '#,##0.00'
 
         # Closing balance line
         ws.append([""])
-        ws.append([f"Closing { (running_balance if notifications_sorted else opening_balance):,.2f}"])
+        ws.append([f"Closing { closing_balance:,.2f}"])
         ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
         ws[ f'A{ws.max_row}' ].font = Font(bold=True)
 
