@@ -811,6 +811,7 @@ def send_sms_to_api(self, message_detail):
             tel_number = message_detail.get('MOBILE_CONTACT')
             card_title = message_detail.get('CARD_TITLE').split()[0]
             card_title = card_title.replace(',', '')  # Remove comma if present
+            acct_nm = card_title
     
             try:
                 date_of_birth = parse(date_of_birth_raw).date()
@@ -911,7 +912,7 @@ def send_sms_to_api(self, message_detail):
         print(f"Error sending SMS: {error_msg}")
 
         # Log even failed attempts
-        if 'SMSLog' in str(type(log_model)):
+        if log_model == SMSLog:
             log_model.objects.create(
                 account_name=acct_nm,
                 phone_number=tel_number,
@@ -921,7 +922,15 @@ def send_sms_to_api(self, message_detail):
                 status=fallback_response,
                 response_data={"error": error_msg}
             )
-        elif 'BirthdaySMSLog' in str(type(log_model)):
+        elif log_model == GroupSMSLog:
+            log_model.objects.create(
+                account_name=acct_nm,
+                phone_number=tel_number,
+                message=message,
+                status=fallback_response,
+                response_data={"error": error_msg}
+            )
+        elif log_model == BirthdaySMSLog:
             log_model.objects.create(
                 acct_nm=acct_nm,
                 client_type=client_type if 'client_type' in locals() else 'Birthday',
@@ -931,11 +940,19 @@ def send_sms_to_api(self, message_detail):
                 status=fallback_response,
                 response_data={"error": error_msg}
             )
-        elif 'GroupLoanSMSLog' in str(type(log_model)):
+        elif log_model == GroupLoanSMSLog:
             # Error handling for group loan SMS
             log_model.objects.create(
                 acct_nm=acct_nm,
                 group_cust_no=group_cust_no if group_cust_no else "",
+                message=message,
+                contact=tel_number,
+                status=fallback_response,
+                response_data={"error": error_msg}
+            )
+        elif log_model == ATMExpirySMSLog:
+            log_model.objects.create(
+                acct_nm=acct_nm,
                 message=message,
                 contact=tel_number,
                 status=fallback_response,
