@@ -78,7 +78,7 @@ def retrieve_birthday_data(self):
 def retrieve_atm_expiry_notifications(self):
     try:
         atm_expiry_data = handle_ATM_expiry()
-        # print(atm_expiry_data)
+        print(atm_expiry_data)
         person_list = atm_expiry_data.get("Person", [])
 
         if not person_list:
