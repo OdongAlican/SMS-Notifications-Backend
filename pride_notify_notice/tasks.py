@@ -171,8 +171,24 @@ def retrieve_escrow_notifications(self):
             except Exception:
                 return 0.0
 
-        opening_balance = to_float(first.get('OPENIING_BAL')) or to_float(first.get('OPENING_BAL'))
-        # closing_balance = to_float(first.get('CLOSING_BAL')) or (to_float(notifications[-1].get('STMNT_BAL')) if notifications else 0.0)
+        # Fixing Openning balance calculation and ensuring transactions are in chronological order for accurate running balance and statement generation
+        # Ensure chronological order
+        def sort_key(n):
+            dt = safe_parse_date(n.get('TRAN_DT')) if isinstance(n, dict) else None
+            return dt or datetime.min
+        notifications_sorted = sorted(notifications, key=sort_key)
+
+        # Opening balance is derived from the first transaction:
+        # opening = first statement balance - first credit + first debit
+        first_txn = next((n for n in notifications_sorted if isinstance(n, dict)), None)
+        if first_txn:
+            first_stmnt_balance = to_float(first_txn.get('STMNT_BAL'))
+            first_debit = to_float(first_txn.get('DEBIT_AMT'))
+            first_credit = to_float(first_txn.get('CREDIT_AMT'))
+            opening_balance = first_stmnt_balance - first_credit + first_debit
+        else:
+            opening_balance = 0.0
+        # Ensure opening balance is not negative if first transaction is a debit without a credit
 
         total_debits = sum(to_float(n.get('DEBIT_AMT')) for n in notifications)
         total_credits = sum(to_float(n.get('CREDIT_AMT')) for n in notifications)
