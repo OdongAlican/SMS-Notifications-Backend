@@ -99,10 +99,10 @@ def retrieve_atm_expiry_notifications(self):
             seen.add(dedupe_key)
             unique_person_list.append(person)
 
-        updated_atm_expiry_list = update_ATM_expiry(unique_person_list)
+        # updated_atm_expiry_list = update_ATM_expiry(unique_person_list)
 
         response_data = []
-        for atm_expiry in updated_atm_expiry_list:
+        for atm_expiry in unique_person_list:
             response = send_sms_to_api(atm_expiry)
             if response:
                 response_data.append(response)
