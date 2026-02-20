@@ -78,16 +78,31 @@ def retrieve_birthday_data(self):
 def retrieve_atm_expiry_notifications(self):
     try:
         atm_expiry_data = handle_ATM_expiry()
-        print(atm_expiry_data)
         person_list = atm_expiry_data.get("Person", [])
 
         if not person_list:
             raise ValueError("Empty 'Person' list received.")
 
-        # updated_atm_expiry_list = update_ATM_expiry(person_list)
+        # Remove duplicate rows to avoid sending repeated SMSs for the same card/contact.
+        unique_person_list = []
+        seen = set()
+        for person in person_list:
+            if not isinstance(person, dict):
+                continue
+            dedupe_key = (
+                str(person.get('CUST_ID', '')).strip(),
+                str(person.get('PAN_MASKED', '')).strip(),
+                str(person.get('MOBILE_CONTACT', '')).strip(),
+            )
+            if dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            unique_person_list.append(person)
+
+        updated_atm_expiry_list = update_ATM_expiry(unique_person_list)
 
         response_data = []
-        for atm_expiry in person_list:
+        for atm_expiry in updated_atm_expiry_list:
             response = send_sms_to_api(atm_expiry)
             if response:
                 response_data.append(response)
@@ -734,6 +749,14 @@ def send_sms_to_api(self, message_detail):
         amt_due = None
         date_of_birth = None
         group_cust_no = None
+        client_type = None
+        card_title = ""
+        pan_masked = ""
+        cust_id = ""
+        cust_no = ""
+        requested_date = None
+        expiry_date = None
+        transaction_acct = ""
 
         # Handle custom messages (New condition for insurance messages)
         if 'CUSTOM_MESSAGE' in message_detail:
@@ -823,20 +846,38 @@ def send_sms_to_api(self, message_detail):
 
         elif "CARD_TITLE" in message_detail:
             # ATM card expiry message
-            pan = message_detail.get('PAN_MASKED')
-            tel_number = message_detail.get('MOBILE_CONTACT')
-            card_title = message_detail.get('CARD_TITLE').split()[0]
-            card_title = card_title.replace(',', '')  # Remove comma if present
+            pan_masked = str(message_detail.get('PAN_MASKED') or '')
+            tel_number = str(message_detail.get('MOBILE_CONTACT') or '').strip()
+            card_title_raw = str(message_detail.get('CARD_TITLE') or '').strip()
+            card_title = card_title_raw.split()[0].replace(',', '') if card_title_raw else 'Customer'
             acct_nm = card_title
-    
+
+            cust_id = str(message_detail.get('CUST_ID') or '').strip()
+            cust_no = str(message_detail.get('CUST_NO') or '').strip()
+            transaction_acct = str(message_detail.get('TRANSACTION_ACCT') or '').strip()
+
             try:
-                date_of_birth = parse(date_of_birth_raw).date()
-            except Exception as e:
-                print(f"Failed to parse BIRTH_DT: {e}")
-                date_of_birth = None
+                requested_date_raw = message_detail.get('REQUESTED_DATE')
+                requested_date = parse(requested_date_raw).date() if requested_date_raw else None
+            except Exception:
+                requested_date = None
+
+            try:
+                expiry_date_raw = message_detail.get('EXPIRY_DATE')
+                expiry_date = parse(expiry_date_raw).date() if expiry_date_raw else None
+            except Exception:
+                expiry_date = None
+
+            # Skip invalid/non-SMS contacts (e.g., emails)
+            if not tel_number.isdigit():
+                raise ValueError(f"Invalid ATM contact '{tel_number}' for card '{card_title_raw}'")
+
+            # Keep model field length constraints safe
+            tel_number = tel_number[:15]
+            transaction_acct = transaction_acct[:50]
 
             message = (
-                f"Dear {card_title}, your ATM card ending with **{pan[-4:]} will expire at the end of this month. "
+                f"Dear {card_title}, your ATM card ending with **{pan_masked[-4:]} will expire at the end of this month. "
                 "Please visit your nearest branch to renew. Never share your PIN."
             )
             log_model = ATMExpirySMSLog
@@ -913,9 +954,15 @@ def send_sms_to_api(self, message_detail):
             )
         elif log_model == ATMExpirySMSLog:
             log_model.objects.create(
-                acct_nm=card_title,
+                cust_id=cust_id,
+                cust_no=cust_no,
+                pan_masked=pan_masked,
+                card_title=card_title,
+                requested_date=requested_date,
+                expiry_date=expiry_date,
+                transaction_acct=transaction_acct,
+                mobile_contact=tel_number,
                 message=message,
-                contact=tel_number,
                 status=api_response,
                 response_data=api_response
             )
@@ -968,9 +1015,15 @@ def send_sms_to_api(self, message_detail):
             )
         elif log_model == ATMExpirySMSLog:
             log_model.objects.create(
-                acct_nm=acct_nm,
+                cust_id=cust_id,
+                cust_no=cust_no,
+                pan_masked=pan_masked,
+                card_title=card_title or acct_nm,
+                requested_date=requested_date,
+                expiry_date=expiry_date,
+                transaction_acct=transaction_acct,
+                mobile_contact=tel_number,
                 message=message,
-                contact=tel_number,
                 status=fallback_response,
                 response_data={"error": error_msg}
             )
