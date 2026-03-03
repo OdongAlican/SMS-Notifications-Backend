@@ -172,12 +172,12 @@ def retrieve_escrow_notifications(self):
             ws = wb.active
             ws.title = "MTN Escrow Statement"
 
-            acct_name = (fallback_first.get('ACCT_NM') or '').strip()
-            address = (fallback_first.get('ADDR_LINE_1') or '').strip()
-            branch_name = (fallback_first.get('BU_NM') or '').strip()
+            acct_name = (fallback_first.get('ACCT_NM') or 'MTN ESCROW ACCOUNT').strip()
+            address = (fallback_first.get('ADDR_LINE_1') or 'PO Box 7566').strip()
+            branch_name = (fallback_first.get('BU_NM') or 'Head Office').strip()
             account_no = (fallback_first.get('ACT_NO') or '').strip()
-            product = (fallback_first.get('PROD_DESC') or '').strip()
-            currency = (fallback_first.get('CRNCY_NM') or fallback_first.get('CRNCY_CD_ISO') or '').strip()
+            product = (fallback_first.get('PROD_DESC') or 'ESCROW DEPOSIT PRODUCT').strip()
+            currency = (fallback_first.get('CRNCY_NM') or fallback_first.get('CRNCY_CD_ISO') or 'Uganda Shillings').strip()
             bank_name = (fallback_first.get('BANK_NAME') or 'Pride Bank').strip()
 
             transaction_date = safe_parse_date(fallback_first.get('TRAN_DT'))
@@ -186,7 +186,7 @@ def retrieve_escrow_notifications(self):
             printed_on = datetime.now().strftime('%d/%m/%Y')
 
             opening_balance = to_float(
-                fallback_first.get('OPENIING_BAL')
+                fallback_first.get('OPENING_BAL')
                 or fallback_first.get('OPENING_BALANCE')
                 or fallback_first.get('OPENING_BAL')
                 or fallback_first.get('STMNT_BAL')
