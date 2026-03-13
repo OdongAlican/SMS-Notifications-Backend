@@ -124,191 +124,27 @@ def retrieve_escrow_notifications(self):
         escrow_data = handle_Escrow_notifications()
         print(f"Escrow data received: {escrow_data}")
 
-        def safe_parse_date(dt):
-            try:
-                if not dt:
-                    return None
-                return parse(str(dt))
-            except Exception:
-                return None
-
-        def to_float(val):
-            try:
-                if val in (None, ''):
-                    return 0.0
-                return float(str(val).replace(',', ''))
-            except Exception:
-                return 0.0
-
-        def normalize_notifications(payload_data):
-            if isinstance(payload_data, list):
-                return payload_data
-            if isinstance(payload_data, dict):
-                payload = (
-                    payload_data.get("statement")
-                    or payload_data.get("Report")
-                    or payload_data.get("data")
-                    or []
-                )
-                if isinstance(payload, dict):
-                    return [payload]
-                if isinstance(payload, list):
-                    return payload
-            return []
-
-        notifications = normalize_notifications(escrow_data)
+        # Normalize input to a list of transactions
+        if isinstance(escrow_data, list):
+            notifications = escrow_data
+        elif isinstance(escrow_data, dict):
+            payload = (
+                escrow_data.get("statement")
+                or escrow_data.get("Report")
+                or escrow_data.get("data")
+                or []
+            )
+            if isinstance(payload, dict):
+                notifications = [payload]
+            elif isinstance(payload, list):
+                notifications = payload
+            else:
+                notifications = []
+        else:
+            notifications = []
 
         if not notifications:
-            print("Primary escrow notifications returned no transactions. Fetching fallback no-transaction report data.")
-            fallback_escrow_data = handle_Escrow_no_transaction_report()
-            print(f"Fallback escrow data received: {fallback_escrow_data}")
-            fallback_notifications = normalize_notifications(fallback_escrow_data)
-            fallback_first = next((n for n in fallback_notifications if isinstance(n, dict)), None)
-
-            if not fallback_first:
-                raise ValueError("No fallback escrow report data received.")
-
-            wb = Workbook()
-            ws = wb.active
-            ws.title = "MTN Escrow Statement"
-
-            acct_name = (fallback_first.get('ACCT_NM') or 'MTN ESCROW ACCOUNT').strip()
-            address = (fallback_first.get('ADDR_LINE_1') or 'PO Box 7566').strip()
-            branch_name = (fallback_first.get('BU_NM') or 'Head Office').strip()
-            account_no = (fallback_first.get('ACT_NO') or '').strip()
-            product = (fallback_first.get('PROD_DESC') or 'ESCROW DEPOSIT PRODUCT').strip()
-            currency = (fallback_first.get('CRNCY_NM') or fallback_first.get('CRNCY_CD_ISO') or 'Uganda Shillings').strip()
-            bank_name = (fallback_first.get('BANK_NAME') or 'Pride Bank').strip()
-
-            transaction_date = safe_parse_date(fallback_first.get('TRAN_DT'))
-            from_date = transaction_date.strftime('%d/%m/%Y') if transaction_date else ''
-            to_date = transaction_date.strftime('%d/%m/%Y') if transaction_date else ''
-            printed_on = datetime.now().strftime('%d/%m/%Y')
-
-            opening_balance = to_float(
-                fallback_first.get('OPENING_BAL')
-                or fallback_first.get('OPENING_BALANCE')
-                or fallback_first.get('OPENING_BAL')
-                or fallback_first.get('STMNT_BAL')
-            )
-            closing_balance = to_float(
-                fallback_first.get('CLOSING_BAL')
-                or fallback_first.get('CLOSING_BALANCE')
-                or fallback_first.get('STMNT_BAL')
-                or opening_balance
-            )
-
-            ws.append(["MTN Escrow Transaction Statement"])
-            ws.merge_cells('A1:N1')
-            ws['A1'].font = Font(bold=True, size=14)
-            ws['A1'].alignment = Alignment(horizontal='center')
-
-            left_rows = [
-                ("Acct Name", acct_name),
-                ("Address", address),
-                ("Branch Name", branch_name),
-                ("Account No", account_no),
-                ("Product", product),
-            ]
-            right_rows = [
-                ("Currency", currency),
-                ("From Date", from_date),
-                ("To Date", to_date),
-                ("Bank", bank_name),
-                ("Printed On", printed_on),
-            ]
-
-            ws.column_dimensions['A'].width = 18
-            ws.column_dimensions['B'].width = 28
-            ws.column_dimensions['C'].width = 6
-            ws.column_dimensions['D'].width = 4
-            ws.column_dimensions['E'].width = 18
-            ws.column_dimensions['F'].width = 28
-            ws.column_dimensions['G'].width = 6
-            ws.column_dimensions['H'].width = 4
-
-            label_fill = PatternFill(start_color="EEF2F7", end_color="EEF2F7", fill_type="solid")
-            value_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
-            header_border = Border(
-                left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin')
-            )
-
-            start_row = 3
-            for i, (label, value) in enumerate(left_rows):
-                r = start_row + i
-                lc = ws.cell(row=r, column=1, value=f"{label}:")
-                lc.font = Font(bold=True)
-                lc.alignment = Alignment(horizontal='left', vertical='center')
-                lc.fill = label_fill
-                lc.border = header_border
-
-                ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=3)
-                vc = ws.cell(row=r, column=2, value=value)
-                vc.alignment = Alignment(horizontal='left', vertical='center')
-                vc.fill = value_fill
-                vc.border = header_border
-
-            for i, (label, value) in enumerate(right_rows):
-                r = start_row + i
-                rc = ws.cell(row=r, column=5, value=f"{label}:")
-                rc.font = Font(bold=True)
-                rc.alignment = Alignment(horizontal='left', vertical='center')
-                rc.fill = label_fill
-                rc.border = header_border
-
-                ws.merge_cells(start_row=r, start_column=6, end_row=r, end_column=8)
-                rv = ws.cell(row=r, column=6, value=value)
-                rv.alignment = Alignment(horizontal='left', vertical='center')
-                rv.fill = value_fill
-                rv.border = header_border
-
-            ws.append([""])
-            ws.append(["No transactions found for previous day."])
-            ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
-            ws[f'A{ws.max_row}'].font = Font(italic=True)
-
-            ws.append([""])
-            ws.append([f"Opening balance : {opening_balance:,.2f}"])
-            ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
-            ws[f'A{ws.max_row}'].font = Font(bold=True)
-
-            ws.append([""])
-            ws.append([f"Closing {closing_balance:,.2f}"])
-            ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
-            ws[f'A{ws.max_row}'].font = Font(bold=True)
-
-            ws.append([""])
-            ws.append(["Printed By : CUSTOMER ENGAGEMENT SYSTEM"])
-            ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
-            ws.append([f"Print Date: {datetime.now().strftime('%d-%b-%Y')} "])
-            ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
-            ws.append(["Verified By: CUSTOMER ENGAGEMENT SYSTEM"])
-            ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
-
-            excel_filename = f"mtn_escrow_statement_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
-            wb.save(excel_filename)
-
-            send_csv_report_email(
-                recipient_email=getattr(settings, 'ESCROW_REPORT_EMAILS', []),
-                subject=f"Daily MTN Escrow Statement - {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}",
-                message="Dear Valued Partner, \nPlease find the attached MTN Escrow statement (no transactions for previous day).",
-                csv_file_path=excel_filename
-            )
-
-            print(f"Escrow no-transaction statement saved to {excel_filename}")
-            return [{
-                'filename': excel_filename,
-                'content': f"Escrow no-transaction statement generated and saved to {excel_filename}",
-                'totals': {
-                    'debits': 0,
-                    'credits': 0,
-                    'count_debits': 0,
-                    'count_credits': 0,
-                    'opening_balance': opening_balance,
-                    'closing_balance': closing_balance,
-                },
-                'no_transactions': True,
-            }]
+            raise ValueError("Empty 'Notifications' list received.")
 
         # Build Excel workbook borrowing layout from provided PDF
         wb = Workbook()
@@ -327,11 +163,28 @@ def retrieve_escrow_notifications(self):
         bank_name = (first.get('BANK_NAME') or 'Pride Bank').strip()
 
         # Determine date range
+        def safe_parse_date(dt):
+            try:
+                if not dt:
+                    return None
+                return parse(str(dt))
+            except Exception:
+                return None
+
         dates = [safe_parse_date(n.get('TRAN_DT')) for n in notifications if isinstance(n, dict)]
         dates = [d for d in dates if d is not None]
         from_date = min(dates).strftime('%d/%m/%Y') if dates else ''
         to_date = max(dates).strftime('%d/%m/%Y') if dates else ''
         printed_on = datetime.now().strftime('%d/%m/%Y')
+
+        # Opening/Closing and totals (fallbacks if missing)
+        def to_float(val):
+            try:
+                if val in (None, ''):
+                    return 0.0
+                return float(str(val).replace(',', ''))
+            except Exception:
+                return 0.0
 
         # Fixing Openning balance calculation and ensuring transactions are in chronological order for accurate running balance and statement generation
         # Ensure chronological order
