@@ -95,13 +95,14 @@ def handle_Escrow_notifications():
                 timeout=10,
                 verify=False  # Disable SSL verification for testing purposes
                 )
-            if response.status_code == 200:
-               return response.json()
-            else:
-                raise ValueError(f"Failed to retrieve data: {response.status_code}")
-        except OperationalError as e:
-            print(f"Error connecting to Oracle: {e}")
-        return []
+            response.raise_for_status()
+            return response.json()
+        except OperationalError as exc:
+            raise OperationalError(f"Error connecting to Oracle for escrow notifications: {exc}") from exc
+        except requests.RequestException as exc:
+            raise ConnectionError(f"Error retrieving escrow notifications: {exc}") from exc
+        except ValueError as exc:
+            raise ValueError(f"Invalid escrow notifications response: {exc}") from exc
 
 
 def handle_Escrow_no_transaction_report():
@@ -127,13 +128,14 @@ def handle_Escrow_no_transaction_report():
                 timeout=10,
                 verify=False
             )
-            if response.status_code == 200:
-               return response.json()
-            else:
-                raise ValueError(f"Failed to retrieve fallback escrow data: {response.status_code}")
-        except OperationalError as e:
-            print(f"Error connecting to Oracle: {e}")
-        return []
+            response.raise_for_status()
+            return response.json()
+        except OperationalError as exc:
+            raise OperationalError(f"Error connecting to Oracle for fallback escrow report: {exc}") from exc
+        except requests.RequestException as exc:
+            raise ConnectionError(f"Error retrieving fallback escrow report: {exc}") from exc
+        except ValueError as exc:
+            raise ValueError(f"Invalid fallback escrow report response: {exc}") from exc
 
 def handle_URA_reports():
         encryption_key = os.getenv("ENCRYPTION_KEY")
