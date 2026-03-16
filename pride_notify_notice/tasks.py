@@ -15,6 +15,55 @@ from django.core.mail import EmailMessage
 from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
 load_dotenv()
 
+
+def _retry_or_fail_escrow_stage(
+    task,
+    exc,
+    stage,
+    stage_attempt,
+    cycle,
+    max_stage_attempts=5,
+    max_cycles=3,
+    retry_countdown=300,
+):
+    if stage == "primary":
+        if stage_attempt < max_stage_attempts:
+            next_stage = "primary"
+            next_stage_attempt = stage_attempt + 1
+            next_cycle = cycle
+        else:
+            next_stage = "fallback"
+            next_stage_attempt = 1
+            next_cycle = cycle
+    else:
+        if stage_attempt < max_stage_attempts:
+            next_stage = "fallback"
+            next_stage_attempt = stage_attempt + 1
+            next_cycle = cycle
+        elif cycle < max_cycles:
+            next_stage = "primary"
+            next_stage_attempt = 1
+            next_cycle = cycle + 1
+        else:
+            raise ValueError(
+                f"Escrow retrieval failed after {max_cycles} cycles of "
+                f"{max_stage_attempts} primary and {max_stage_attempts} fallback attempts."
+            ) from exc
+
+    print(
+        f"Scheduling escrow retry in {retry_countdown} seconds: "
+        f"stage={next_stage}, attempt={next_stage_attempt}, cycle={next_cycle}."
+    )
+    raise task.retry(
+        exc=exc,
+        countdown=retry_countdown,
+        kwargs={
+            "stage": next_stage,
+            "stage_attempt": next_stage_attempt,
+            "cycle": next_cycle,
+        },
+    )
+
 @shared_task(bind=True, max_retries=5, default_retry_delay=300)
 def retrieve_data(self):
     try:
@@ -118,11 +167,18 @@ def retrieve_atm_expiry_notifications(self):
         raise self.retry(exc=exc)
     
     
-@shared_task(bind=True, max_retries=5, default_retry_delay=300)
-def retrieve_escrow_notifications(self):
+@shared_task(bind=True, max_retries=29, default_retry_delay=300)
+def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=1):
     try:
-        escrow_data = handle_Escrow_notifications()
-        print(f"Escrow data received: {escrow_data}")
+        max_stage_attempts = 5
+        max_cycles = 3
+        retry_countdown = 300
+
+        if stage not in {"primary", "fallback"}:
+            raise ValueError(f"Invalid escrow retry stage '{stage}'.")
+
+        if stage_attempt < 1 or cycle < 1:
+            raise ValueError("Escrow retry state must start from attempt 1 and cycle 1.")
 
         def safe_parse_date(dt):
             try:
@@ -156,18 +212,7 @@ def retrieve_escrow_notifications(self):
                     return payload
             return []
 
-        notifications = normalize_notifications(escrow_data)
-
-        if not notifications:
-            print("Primary escrow notifications returned no transactions. Fetching fallback no-transaction report data.")
-            fallback_escrow_data = handle_Escrow_no_transaction_report()
-            print(f"Fallback escrow data received: {fallback_escrow_data}")
-            fallback_notifications = normalize_notifications(fallback_escrow_data)
-            fallback_first = next((n for n in fallback_notifications if isinstance(n, dict)), None)
-
-            if not fallback_first:
-                raise ValueError("No fallback escrow report data received.")
-
+        def build_no_transaction_report(fallback_first):
             wb = Workbook()
             ws = wb.active
             ws.title = "MTN Escrow Statement"
@@ -309,6 +354,80 @@ def retrieve_escrow_notifications(self):
                 },
                 'no_transactions': True,
             }]
+
+        print(
+            f"Running escrow retrieval stage={stage}, attempt={stage_attempt}, cycle={cycle}."
+        )
+
+        if stage == "primary":
+            try:
+                escrow_data = handle_Escrow_notifications()
+                print(f"Primary escrow notifications data received: {escrow_data}")
+            except Exception as exc:
+                _retry_or_fail_escrow_stage(
+                    self,
+                    exc,
+                    stage,
+                    stage_attempt,
+                    cycle,
+                    max_stage_attempts=max_stage_attempts,
+                    max_cycles=max_cycles,
+                    retry_countdown=retry_countdown,
+                )
+
+            notifications = normalize_notifications(escrow_data)
+
+            if not notifications:
+                print(
+                    "Primary escrow notifications returned no transactions. "
+                    "Scheduling fallback no-transaction report retrieval in 300 seconds."
+                )
+                self.apply_async(
+                    kwargs={
+                        "stage": "fallback",
+                        "stage_attempt": 1,
+                        "cycle": cycle,
+                    },
+                    countdown=retry_countdown,
+                )
+                return [{
+                    'status': 'scheduled_fallback',
+                    'stage': 'fallback',
+                    'stage_attempt': 1,
+                    'cycle': cycle,
+                }]
+        else:
+            try:
+                fallback_escrow_data = handle_Escrow_no_transaction_report()
+                print(f"Fallback escrow no-transaction report data received: {fallback_escrow_data}")
+            except Exception as exc:
+                _retry_or_fail_escrow_stage(
+                    self,
+                    exc,
+                    stage,
+                    stage_attempt,
+                    cycle,
+                    max_stage_attempts=max_stage_attempts,
+                    max_cycles=max_cycles,
+                    retry_countdown=retry_countdown,
+                )
+
+            fallback_notifications = normalize_notifications(fallback_escrow_data)
+            fallback_first = next((n for n in fallback_notifications if isinstance(n, dict)), None)
+
+            if not fallback_first:
+                _retry_or_fail_escrow_stage(
+                    self,
+                    ValueError("Fallback escrow report returned no usable data."),
+                    stage,
+                    stage_attempt,
+                    cycle,
+                    max_stage_attempts=max_stage_attempts,
+                    max_cycles=max_cycles,
+                    retry_countdown=retry_countdown,
+                )
+
+            return build_no_transaction_report(fallback_first)
 
         # Build Excel workbook borrowing layout from provided PDF
         wb = Workbook()
@@ -593,11 +712,11 @@ def retrieve_escrow_notifications(self):
 
     except (ValueError) as e:
         print(f"Data error: {e}")
-        raise self.retry(exc=e)
+        raise
 
     except Exception as exc:
         print(f"Unexpected error occurred: {exc}")
-        raise self.retry(exc=exc)
+        raise
 
 @shared_task(bind=True, max_retries=5, default_retry_delay=300)
 def retrieve_ura_report(self):
