@@ -66,3 +66,18 @@ class ATMExpirySMSLog(models.Model):
 
     def __str__(self):
         return f"ATMExpirySMSLog for {self.card_title} ({self.mobile_contact})"
+    
+class GregSchoolSMSLog(models.Model):
+    acct_nm = models.CharField(max_length=255)
+    txn_amount = models.CharField(max_length=255)
+    message = models.TextField(null=True, blank=True)
+    ledger = models.CharField(max_length=255, null=True, blank=True)
+    tran_description = models.CharField(max_length=255, null=True, blank=True)
+    contact = models.CharField(max_length=15)
+    txn_date = models.DateField(null=True, blank=True)
+    response_data = models.JSONField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=50, null=True, blank=True)
+
+    def __str__(self):
+        return f"GregSchoolSMSLog for {self.acct_nm} ({self.contact})"
