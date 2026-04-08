@@ -51,6 +51,11 @@ app.conf.beat_schedule = {
         'schedule': crontab(hour=9, minute=0, day_of_month='15'),  # Run on the 15th of every month at 9:00 am
         # 'schedule': crontab(hour=8, minute=0, day_of_month='2'),  # Run on the 2nd of every month at 8:00 am
     },
+    # This should run every day at 12:15 pm
+    'send-monthly-school-reports': {
+        'task': 'pride_notify_notice.tasks.retrieve_greg_school_reports',
+        'schedule': crontab(hour=15, minute=38),  # Run every day at 3:38 pm
+    },
 }
     
 # Load task modules from all registered Django app configs.
