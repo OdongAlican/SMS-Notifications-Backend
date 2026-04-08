@@ -1,9 +1,10 @@
 from celery import shared_task
-from pride_notify_notice.utils import handle_ATM_expiry, handle_Escrow_notifications, handle_Escrow_no_transaction_report, handle_loans_due, handle_birthdays, handle_URA_reports, handle_group_loans, update_ATM_expiry, update_group_loans
+from pride_notify_notice.utils import handle_ATM_expiry, handle_Escrow_notifications, handle_Escrow_no_transaction_report, handle_greg_school_reports, handle_loans_due, handle_birthdays, handle_URA_reports, handle_group_loans, update_ATM_expiry, update_List_greg_school_reports, update_group_loans
 import urllib3
 from datetime import datetime
 import json
-from .models import ATMExpirySMSLog, GroupLoanSMSLog, SMSLog, BirthdaySMSLog, GroupSMSLog
+import re
+from .models import ATMExpirySMSLog, GregSchoolSMSLog, GroupLoanSMSLog, SMSLog, BirthdaySMSLog, GroupSMSLog
 from dateutil.parser import parse
 import os
 from dotenv import load_dotenv
@@ -121,6 +122,40 @@ def retrieve_birthday_data(self):
     except Exception as exc:
         print(f"Unexpected error occurred: {exc}")
         raise self.retry(exc=exc)
+    
+@shared_task(bind=True, max_retries=5, default_retry_delay=300)
+def retrieve_greg_school_reports(self):
+    try:
+        greg_school_reports_data = handle_greg_school_reports()
+        # print(greg_school_reports_data)
+        person_list = greg_school_reports_data.get("Person", [])
+
+        if not person_list:
+            raise ValueError("Empty 'Person' list received.")
+        
+        print(f"Original Greg School Reports List: {person_list}")
+
+        updated_greg_school_reports_list = update_List_greg_school_reports(person_list)
+        
+        print(f"Updated Greg School Reports List: {updated_greg_school_reports_list}")
+
+        response_data = []
+    
+        for report in updated_greg_school_reports_list:
+            response = send_sms_to_api(report)
+            if response:
+                response_data.append(response)
+
+        return response_data
+
+    except (ValueError) as e:
+        print(f"Data error: {e}")
+        raise self.retry(exc=e)
+
+    except Exception as exc:
+        print(f"Unexpected error occurred: {exc}")
+        raise self.retry(exc=exc)
+
 
 
 @shared_task(bind=True, max_retries=5, default_retry_delay=300)
@@ -1023,6 +1058,8 @@ def send_sms_to_api(self, message_detail):
         requested_date = None
         expiry_date = None
         transaction_acct = ""
+        txn_date_for_db = None
+        txn_time_fmt = ""
 
         # Handle custom messages (New condition for insurance messages)
         if 'CUSTOM_MESSAGE' in message_detail:
@@ -1068,6 +1105,70 @@ def send_sms_to_api(self, message_detail):
                 "Thank you for choosing Pride. Toll Free: 0800333999"
             )
             log_model = BirthdaySMSLog
+
+        elif 'CUSTOMER_NAME' in message_detail:
+            # Extract raw values
+            acct_no = message_detail.get('ACCT_NO', '')
+            txn_amount = message_detail.get('TXN_AMT', '0')
+            txn_date_raw = message_detail.get('TRAN_DT')
+            tran_desc = message_detail.get('TRAN_DESC', '')
+            ledger_bal = message_detail.get('LEDGER_BAL', '0')
+            acct_nm = message_detail.get('CUSTOMER_NAME', '')
+            tel_number = message_detail.get('TEL_NUMBER') or message_detail.get('CUSTOMER_NAME', '')
+
+            # 1. Mask account number (last 4 digits)
+            acct_masked = f"***{acct_no[-4:]}" if acct_no else "***0000"
+
+            # 2. Format amount (UGX with commas)
+            try:
+                txn_amount_fmt = f"{int(float(txn_amount)):,}"
+            except:
+                txn_amount_fmt = txn_amount
+
+            # 3. Format date and time
+            try:
+                parsed_txn_date = datetime.fromisoformat(txn_date_raw)
+                txn_date_for_db = parsed_txn_date.date()
+                txn_date_fmt = parsed_txn_date.strftime("%d/%m/%Y")
+                txn_time_fmt = parsed_txn_date.strftime("%H:%M:%S")
+                print(f"Parsed TRAN_DT '{txn_date_raw}' to '{txn_date_fmt} {txn_time_fmt}'")
+            except Exception as e:
+                print(f"Failed to parse TRAN_DT '{txn_date_raw}': {e}")
+                txn_date_fmt = txn_date_raw
+                txn_date_for_db = None
+                txn_time_fmt = ""
+                
+            # 4. Extract "1009453253-Jane Doe"
+            extracted_desc = ""
+            try:
+                match = re.search(
+                    r'(\d+-.*?)(?=-(?:MTN_UG|AIRTEL_UG)\b)',
+                    tran_desc,
+                    flags=re.IGNORECASE,
+                )
+                if match:
+                    extracted_desc = match.group(1).strip()
+                else:
+                    extracted_desc = "UNKNOWN"
+            except Exception:
+                extracted_desc = "UNKNOWN"
+
+            # 5. Format balance (remove decimals, add commas)
+            try:
+                bal_fmt = f"{int(float(ledger_bal)):,}"
+            except:
+                bal_fmt = ledger_bal
+
+            # Final message
+            message = (
+                f"GREGS HILL PRI SCH, CR on A/C {acct_masked} "
+                f"with UGX {txn_amount_fmt} on {txn_date_fmt} "
+                f"at {txn_time_fmt} "
+                f"by {extracted_desc}. Bal:{bal_fmt}. "
+                f"For Help Call 0800333999"
+            )
+            print("Generated GREGS HILL message:", message)
+            log_model = GregSchoolSMSLog
 
         
         elif 'GROUP_CUST_NO' in message_detail:
@@ -1232,6 +1333,16 @@ def send_sms_to_api(self, message_detail):
                 status=api_response,
                 response_data=api_response
             )
+        elif log_model == GregSchoolSMSLog:
+            log_model.objects.create(
+                acct_nm=acct_no,
+                txn_amount=txn_amount,
+                txn_date=txn_date_for_db,
+                tran_description=tran_desc,
+                ledger=ledger_bal,
+                contact=tel_number,
+                message=message,
+            )
 
         return response_data
 
@@ -1292,6 +1403,17 @@ def send_sms_to_api(self, message_detail):
                 message=message,
                 status=fallback_response,
                 response_data={"error": error_msg}
+            )
+
+        elif log_model == GregSchoolSMSLog:
+            log_model.objects.create(
+                acct_nm=acct_no,
+                txn_amount=txn_amount,
+                txn_date=txn_date_for_db,
+                tran_description=tran_desc,
+                ledger=ledger_bal,
+                contact=tel_number,
+                message=message,
             )
 
         return {
