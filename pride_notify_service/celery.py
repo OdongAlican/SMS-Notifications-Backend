@@ -51,10 +51,32 @@ app.conf.beat_schedule = {
         'schedule': crontab(hour=9, minute=0, day_of_month='15'),  # Run on the 15th of every month at 9:00 am
         # 'schedule': crontab(hour=8, minute=0, day_of_month='2'),  # Run on the 2nd of every month at 8:00 am
     },
-    # This should run every day at 12:15 pm
-    'send-monthly-school-reports': {
+    'send-greg-school-reports-midday': {
         'task': 'pride_notify_notice.tasks.retrieve_greg_school_reports',
-        'schedule': crontab(hour=15, minute=38),  # Run every day at 3:38 pm
+        'schedule': crontab(hour=12, minute=0),
+        'kwargs': {
+            'start_time': '00:00:00',
+            'end_time': '12:00:00',
+            'window_label': 'midday',
+        },
+    },
+    'send-greg-school-reports-evening': {
+        'task': 'pride_notify_notice.tasks.retrieve_greg_school_reports',
+        'schedule': crontab(hour=19, minute=0),
+        'kwargs': {
+            'start_time': '12:00:01',
+            'end_time': '19:00:00',
+            'window_label': 'evening',
+        },
+    },
+    'send-greg-school-reports-night': {
+        'task': 'pride_notify_notice.tasks.retrieve_greg_school_reports',
+        'schedule': crontab(hour=23, minute=59),
+        'kwargs': {
+            'start_time': '19:00:01',
+            'end_time': '23:59:59',
+            'window_label': 'night',
+        },
     },
 }
     
