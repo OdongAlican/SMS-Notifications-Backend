@@ -1,5 +1,5 @@
 from celery import shared_task
-from pride_notify_notice.utils import handle_ATM_expiry, handle_Escrow_notifications, handle_Escrow_no_transaction_report, handle_greg_school_reports, handle_loans_due, handle_birthdays, handle_URA_reports, handle_group_loans, update_ATM_expiry, update_List_greg_school_reports, update_group_loans
+from pride_notify_notice.utils import filter_today_transactions, handle_ATM_expiry, handle_Escrow_notifications, handle_Escrow_no_transaction_report, handle_greg_school_reports, handle_loans_due, handle_birthdays, handle_URA_reports, handle_group_loans, update_ATM_expiry, update_List_greg_school_reports, update_group_loans
 import urllib3
 from datetime import datetime
 import json
@@ -127,22 +127,46 @@ def retrieve_birthday_data(self):
 def retrieve_greg_school_reports(self):
     try:
         greg_school_reports_data = handle_greg_school_reports()
-        # print(greg_school_reports_data)
-        person_list = greg_school_reports_data.get("Person", [])
 
-        if not person_list:
+        def normalize_notifications(payload_data):
+            if isinstance(payload_data, list):
+                return payload_data
+            if isinstance(payload_data, dict):
+                payload = (
+                    payload_data.get("Person")
+                    or payload_data.get("Report")
+                    or payload_data.get("data")
+                    or payload_data.get("statement")
+                    or []
+                )
+                if isinstance(payload, dict):
+                    return [payload]
+                if isinstance(payload, list):
+                    return payload
+            return []
+
+        transactions = normalize_notifications(greg_school_reports_data)
+
+        if not transactions:
             raise ValueError("Empty 'Person' list received.")
         
-        print(f"Original Greg School Reports List: {person_list}")
+        print(f"Original Greg School Reports List: {transactions}")
 
-        updated_greg_school_reports_list = update_List_greg_school_reports(person_list)
+        # Filter transactions to include only those for the current day to avoid sending outdated reports
+        # filtered_txns = filter_today_transactions(transactions)
+
+        print(f"Filtered Greg School Reports List (Today's Transactions): {transactions}")
+
+        updated_greg_school_reports_list = update_List_greg_school_reports(transactions)
         
         print(f"Updated Greg School Reports List: {updated_greg_school_reports_list}")
 
         response_data = []
     
         for report in updated_greg_school_reports_list:
-            response = send_sms_to_api(report)
+            print(f"Processing report: {report}")
+            return
+            # response = send_sms_to_api(report)
             if response:
                 response_data.append(response)
 
