@@ -6,7 +6,7 @@ import requests
 from requests.auth import HTTPBasicAuth
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
-import json
+from datetime import datetime
 load_dotenv()
 
 def handle_loans_due():
@@ -329,19 +329,31 @@ def update_List_birthdays(loan_details):
     return updated_list
 
 def update_List_greg_school_reports(loan_details):
-    test_list = loan_details[:10]
+    test_list = loan_details[:5]
     updated_list = []
 
-    phone_numbers = getattr(settings, 'TEST_USERS_CONTACTS', [])
+    phone_numbers = getattr(settings, 'GREG_SCHOOL_USERS_CONTACTS', [])
 
     for index, acct in enumerate(test_list):
-        updated_acct = dict(acct)
-        if phone_numbers:
-            updated_acct["TEL_NUMBER"] = phone_numbers[index % len(phone_numbers)]
-        
-        updated_list.append(updated_acct)
+        acct["TEL_NUMBER"] = phone_numbers[index]
+        updated_list.append(acct)
     
     return updated_list
+
+def filter_today_transactions(transactions):
+    today = datetime.now().date()
+    result = []
+
+    for txn in transactions:
+        txn_date_str = txn.get('TXN_TIME')
+        if not txn_date_str:
+            continue
+
+        txn_datetime = datetime.fromisoformat(txn_date_str)
+        if txn_datetime.date() == today:
+            result.append(txn)
+
+    return result
 
 def update_ATM_expiry(loan_details):
     test_list = loan_details[:10]
