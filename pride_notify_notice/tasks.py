@@ -153,11 +153,11 @@ def retrieve_greg_school_reports(self):
         print(f"Original Greg School Reports List: {transactions}")
 
         # Filter transactions to include only those for the current day to avoid sending outdated reports
-        # filtered_txns = filter_today_transactions(transactions)
+        filtered_txns = filter_today_transactions(transactions)
 
-        print(f"Filtered Greg School Reports List (Today's Transactions): {transactions}")
+        print(f"Filtered Greg School Reports List (Today's Transactions): {filtered_txns}")
 
-        updated_greg_school_reports_list = update_List_greg_school_reports(transactions)
+        updated_greg_school_reports_list = update_List_greg_school_reports(filtered_txns)
         
         print(f"Updated Greg School Reports List: {updated_greg_school_reports_list}")
 
