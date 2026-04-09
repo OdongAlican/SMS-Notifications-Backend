@@ -164,9 +164,7 @@ def retrieve_greg_school_reports(self):
         response_data = []
     
         for report in updated_greg_school_reports_list:
-            print(f"Processing report: {report}")
-            return
-            # response = send_sms_to_api(report)
+            response = send_sms_to_api(report)
             if response:
                 response_data.append(response)
 
@@ -1134,7 +1132,7 @@ def send_sms_to_api(self, message_detail):
             # Extract raw values
             acct_no = message_detail.get('ACCT_NO', '')
             txn_amount = message_detail.get('TXN_AMT', '0')
-            txn_date_raw = message_detail.get('TRAN_DT')
+            txn_date_raw = message_detail.get('TXN_TIME')
             tran_desc = message_detail.get('TRAN_DESC', '')
             ledger_bal = message_detail.get('LEDGER_BAL', '0')
             acct_nm = message_detail.get('CUSTOMER_NAME', '')
@@ -1154,7 +1152,7 @@ def send_sms_to_api(self, message_detail):
                 parsed_txn_date = datetime.fromisoformat(txn_date_raw)
                 txn_date_for_db = parsed_txn_date.date()
                 txn_date_fmt = parsed_txn_date.strftime("%d/%m/%Y")
-                txn_time_fmt = parsed_txn_date.strftime("%H:%M:%S")
+                txn_time_fmt = parsed_txn_date.strftime("%H:%M")
                 print(f"Parsed TRAN_DT '{txn_date_raw}' to '{txn_date_fmt} {txn_time_fmt}'")
             except Exception as e:
                 print(f"Failed to parse TRAN_DT '{txn_date_raw}': {e}")
@@ -1165,6 +1163,7 @@ def send_sms_to_api(self, message_detail):
             # 4. Extract "1009453253-Jane Doe"
             extracted_desc = ""
             try:
+                print(f"Attempting to extract description from TRAN_DESC: '{tran_desc}'")
                 match = re.search(
                     r'(\d+-.*?)(?=-(?:MTN_UG|AIRTEL_UG)\b)',
                     tran_desc,
@@ -1174,7 +1173,8 @@ def send_sms_to_api(self, message_detail):
                     extracted_desc = match.group(1).strip()
                 else:
                     extracted_desc = "UNKNOWN"
-            except Exception:
+            except Exception as e:
+                print(f"Failed to extract description from TRAN_DESC: {e}")
                 extracted_desc = "UNKNOWN"
 
             # 5. Format balance (remove decimals, add commas)
@@ -1281,10 +1281,14 @@ def send_sms_to_api(self, message_detail):
         password = os.getenv("MOONLIGHT_SENDER_PASSWORD", "default_password")
         address = os.getenv("MOONLIGHT_SENDER_ADDRESS", "http://example.com/api")
 
-        resp = http.request(
-            'GET',
-            f"{address}?sender_name={sender_name}&password={password}&recipient_addr={tel_number}&message={message}"
-        )
+        print(f"Sending SMS to {tel_number} with message: {message}")
+
+        # resp = http.request(
+        #     'GET',
+        #     f"{address}?sender_name={sender_name}&password={password}&recipient_addr={tel_number}&message={message}"
+        # )
+
+        resp = "";
 
         # Attempt to parse response
         try:
