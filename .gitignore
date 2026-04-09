@@ -9,3 +9,4 @@ venv
 *.pot
 .venv
 *.pyc
+README.md
