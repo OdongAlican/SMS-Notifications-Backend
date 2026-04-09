@@ -1,5 +1,19 @@
 from celery import shared_task
-from pride_notify_notice.utils import filter_today_transactions, handle_ATM_expiry, handle_Escrow_notifications, handle_Escrow_no_transaction_report, handle_greg_school_reports, handle_loans_due, handle_birthdays, handle_URA_reports, handle_group_loans, update_ATM_expiry, update_List_greg_school_reports, update_group_loans
+from pride_notify_notice.utils import (
+    filter_today_transactions, 
+    handle_ATM_expiry, 
+    handle_Escrow_notifications, 
+    handle_Escrow_no_transaction_report, 
+    handle_greg_school_reports, 
+    handle_loans_due, 
+    handle_birthdays, 
+    handle_URA_reports, 
+    handle_group_loans, 
+    # update_ATM_expiry, 
+    update_List_greg_school_reports, 
+    # update_group_loans,
+    parse_schedule_time,
+)
 import urllib3
 from datetime import datetime
 import json
@@ -124,8 +138,21 @@ def retrieve_birthday_data(self):
         raise self.retry(exc=exc)
     
 @shared_task(bind=True, max_retries=5, default_retry_delay=300)
-def retrieve_greg_school_reports(self):
+def retrieve_greg_school_reports(
+    self,
+    start_time=None,
+    end_time=None,
+    window_label="full_day",
+):
     try:
+        parsed_start_time = parse_schedule_time(start_time, "start_time")
+        parsed_end_time = parse_schedule_time(end_time, "end_time")
+
+        print(
+            "Running Greg School report retrieval "
+            f"for window={window_label}, start_time={start_time}, end_time={end_time}."
+        )
+
         greg_school_reports_data = handle_greg_school_reports()
 
         def normalize_notifications(payload_data):
@@ -152,10 +179,23 @@ def retrieve_greg_school_reports(self):
         
         print(f"Original Greg School Reports List: {transactions}")
 
-        # Filter transactions to include only those for the current day to avoid sending outdated reports
-        filtered_txns = filter_today_transactions(transactions)
+        filtered_txns = filter_today_transactions(
+            transactions,
+            start_time=parsed_start_time,
+            end_time=parsed_end_time,
+        )
 
-        print(f"Filtered Greg School Reports List (Today's Transactions): {filtered_txns}")
+        print(
+            "Filtered Greg School Reports List "
+            f"for {window_label}: {filtered_txns}"
+        )
+
+        if not filtered_txns:
+            print(
+                "No Greg School transactions found "
+                f"for window={window_label}."
+            )
+            return []
 
         updated_greg_school_reports_list = update_List_greg_school_reports(filtered_txns)
         
