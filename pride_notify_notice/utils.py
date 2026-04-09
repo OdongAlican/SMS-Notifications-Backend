@@ -1,12 +1,14 @@
 from django.db.utils import OperationalError
 from django.conf import settings
+from django.utils import timezone
 from .models import SMSLog, BirthdaySMSLog
 import os
 import requests
 from requests.auth import HTTPBasicAuth
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, time
+from dateutil.parser import parse
 load_dotenv()
 
 def handle_loans_due():
@@ -340,17 +342,41 @@ def update_List_greg_school_reports(loan_details):
     
     return updated_list
 
-def filter_today_transactions(transactions):
-    today = datetime.now().date()
+def _parse_transaction_datetime(txn_time_str):
+    if not txn_time_str:
+        return None
+
+    try:
+        txn_datetime = parse(str(txn_time_str))
+    except (TypeError, ValueError):
+        return None
+
+    current_timezone = timezone.get_current_timezone()
+    if timezone.is_aware(txn_datetime):
+        return timezone.localtime(txn_datetime, current_timezone)
+
+    return timezone.make_aware(txn_datetime, current_timezone)
+
+
+def filter_today_transactions(transactions, start_time=None, end_time=None):
+    current_timezone = timezone.get_current_timezone()
+    today = timezone.localtime().date()
+    window_start = timezone.make_aware(
+        datetime.combine(today, start_time or time.min),
+        current_timezone,
+    )
+    window_end = timezone.make_aware(
+        datetime.combine(today, end_time or time.max),
+        current_timezone,
+    )
     result = []
 
     for txn in transactions:
-        txn_date_str = txn.get('TXN_TIME')
-        if not txn_date_str:
+        txn_datetime = _parse_transaction_datetime(txn.get('TXN_TIME'))
+        if txn_datetime is None:
             continue
 
-        txn_datetime = datetime.fromisoformat(txn_date_str)
-        if txn_datetime.date() == today:
+        if window_start <= txn_datetime <= window_end:
             result.append(txn)
 
     return result
@@ -380,3 +406,18 @@ def update_group_loans(loan_details):
         updated_list.append(acct)
     
     return updated_list
+
+
+def parse_schedule_time(value, field_name):
+    if value is None:
+        return None
+
+    for time_format in ("%H:%M:%S", "%H:%M"):
+        try:
+            return datetime.strptime(value, time_format).time()
+        except ValueError:
+            continue
+
+    raise ValueError(
+        f"Invalid {field_name} '{value}'. Use HH:MM or HH:MM:SS format."
+    )
