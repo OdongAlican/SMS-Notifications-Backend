@@ -1283,14 +1283,10 @@ def send_sms_to_api(self, message_detail):
         password = os.getenv("MOONLIGHT_SENDER_PASSWORD", "default_password")
         address = os.getenv("MOONLIGHT_SENDER_ADDRESS", "http://example.com/api")
 
-        print(f"Sending SMS to {tel_number} with message: {message}")
-
-        # resp = http.request(
-        #     'GET',
-        #     f"{address}?sender_name={sender_name}&password={password}&recipient_addr={tel_number}&message={message}"
-        # )
-
-        resp = "";
+        resp = http.request(
+            'GET',
+            f"{address}?sender_name={sender_name}&password={password}&recipient_addr={tel_number}&message={message}"
+        )
 
         # Attempt to parse response
         try:
