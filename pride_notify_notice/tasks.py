@@ -1165,7 +1165,9 @@ def send_sms_to_api(self, message_detail):
             try:
                 print(f"Attempting to extract description from TRAN_DESC: '{tran_desc}'")
                 match = re.search(
-                    r'(\d+-.*?)(?=-(?:MTN_UG|AIRTEL_UG)\b)',
+                    # r'(\d+-.*?)(?=-(?:MTN_UG|AIRTEL_UG)\b)',
+                    # r'(\d+-.*?)(?=-(?:MTN_UG|AIRTEL_UG|AIRTEL_MONEY_UG)\b)',
+                    r'(\d+-.*?)(?=-[A-Z_]+_UG\b)',
                     tran_desc,
                     flags=re.IGNORECASE,
                 )
