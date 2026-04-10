@@ -10,7 +10,7 @@ from pride_notify_notice.utils import (
     handle_URA_reports, 
     handle_group_loans, 
     # update_ATM_expiry, 
-    update_List_greg_school_reports, 
+    # update_List_greg_school_reports, 
     # update_group_loans,
     parse_schedule_time,
 )
@@ -197,13 +197,12 @@ def retrieve_greg_school_reports(
             )
             return []
 
-        updated_greg_school_reports_list = update_List_greg_school_reports(filtered_txns)
-        
-        print(f"Updated Greg School Reports List: {updated_greg_school_reports_list}")
+        # updated_greg_school_reports_list = update_List_greg_school_reports(filtered_txns)
+        # print(f"Updated Greg School Reports List: {filtered_txns}")
 
         response_data = []
     
-        for report in updated_greg_school_reports_list:
+        for report in filtered_txns:
             response = send_sms_to_api(report)
             if response:
                 response_data.append(response)
