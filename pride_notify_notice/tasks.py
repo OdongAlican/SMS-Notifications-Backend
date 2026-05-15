@@ -1180,6 +1180,19 @@ def send_sms_to_api(self, message_detail):
             # 1. Mask account number (last 4 digits)
             acct_masked = f"***{acct_no[-4:]}" if acct_no else "***0000"
 
+            greg_school_account=settings.GREG_SCHOOL_ACCOUNT_NUMBER
+            # creamland_account=settings.CREAMLAND_SCHOOL_ACCOUNT_NUMBER
+            precious_school_account=settings.PRECIOUS_SCHOOL_ACCOUNT_NUMBER
+            
+            school_name = "Valued Customer" # Default name if no account match
+
+            if acct_no == greg_school_account:
+                school_name = "GREGS HILL PRI SCH"
+            # elif acct_no == creamland_account:
+            #     school_name = "CREAMLAND PRI SCH"
+            elif acct_no == precious_school_account:
+                school_name = "PRECIOUS KINDERGARTEN"
+
             # 2. Format amount (UGX with commas)
             try:
                 txn_amount_fmt = f"{int(float(txn_amount)):,}"
@@ -1226,13 +1239,13 @@ def send_sms_to_api(self, message_detail):
 
             # Final message
             message = (
-                f"GREGS HILL PRI SCH, CR on A/C {acct_masked} "
+                f"{school_name}, CR on A/C {acct_masked} "
                 f"with UGX {txn_amount_fmt} on {txn_date_fmt} "
                 f"at {txn_time_fmt} "
                 f"by {extracted_desc}. Bal:{bal_fmt}. "
                 f"For Help Call 0800333999"
             )
-            print("Generated GREGS HILL message:", message)
+            print(f"Generated {school_name} message:", message)
             log_model = GregSchoolSMSLog
 
         
