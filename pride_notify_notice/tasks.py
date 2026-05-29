@@ -1,7 +1,9 @@
 from celery import shared_task
 from pride_notify_notice.utils import (
-    filter_today_transactions, 
-    handle_ATM_expiry, 
+    filter_today_transactions,
+    filter_transactions_in_window,
+    get_rolling_window,
+    handle_ATM_expiry,
     handle_Escrow_notifications, 
     handle_Escrow_no_transaction_report, 
     handle_greg_school_reports, 
@@ -145,12 +147,19 @@ def retrieve_greg_school_reports(
     window_label="full_day",
 ):
     try:
-        parsed_start_time = parse_schedule_time(start_time, "start_time")
-        parsed_end_time = parse_schedule_time(end_time, "end_time")
+        # --- OLD: fixed start_time/end_time windows for the 3-times-a-day schedule ---
+        # parsed_start_time = parse_schedule_time(start_time, "start_time")
+        # parsed_end_time = parse_schedule_time(end_time, "end_time")
+
+        # --- NEW: rolling one-hour window for the hourly schedule ---
+        # Look only at transactions from the previous clock hour so each run
+        # processes a distinct, non-overlapping slice and never re-sends.
+        window_start, window_end = get_rolling_window(window_hours=1)
 
         print(
             "Running Greg School report retrieval "
-            f"for window={window_label}, start_time={start_time}, end_time={end_time}."
+            f"for window={window_label}, "
+            f"window_start={window_start}, window_end={window_end}."
         )
 
         greg_school_reports_data = handle_greg_school_reports()
@@ -179,10 +188,18 @@ def retrieve_greg_school_reports(
         
         print(f"Original Greg School Reports List: {transactions}")
 
-        filtered_txns = filter_today_transactions(
+        # --- OLD: filtered by fixed start/end time-of-day windows ---
+        # filtered_txns = filter_today_transactions(
+        #     transactions,
+        #     start_time=parsed_start_time,
+        #     end_time=parsed_end_time,
+        # )
+
+        # --- NEW: keep only transactions inside the rolling one-hour window ---
+        filtered_txns = filter_transactions_in_window(
             transactions,
-            start_time=parsed_start_time,
-            end_time=parsed_end_time,
+            window_start,
+            window_end,
         )
 
         print(
@@ -1330,6 +1347,25 @@ def send_sms_to_api(self, message_detail):
         else:
             raise ValueError("Invalid message_detail format: no recognized fields found.")
 
+        # Idempotency guard for Greg School reports: never send the same SMS
+        # twice. A successful send is logged with status="SENT" below, so if an
+        # identical message to the same contact is already recorded as sent,
+        # skip it. This protects against window overlap and Celery retries
+        # re-processing a batch after a partial failure.
+        if log_model == GregSchoolSMSLog and GregSchoolSMSLog.objects.filter(
+            contact=tel_number,
+            message=message,
+            status="SENT",
+        ).exists():
+            print(f"Skipping duplicate Greg School SMS to {tel_number}: already sent.")
+            return {
+                'account_name': acct_nm,
+                'phone_number': tel_number,
+                'message': message,
+                'status': 'skipped_duplicate',
+                'response_data': {'skipped': 'duplicate'},
+            }
+
         # Send SMS (existing code)
         sender_name = os.getenv("MOONLIGHT_SENDER_NAME", "default_sender")
         password = os.getenv("MOONLIGHT_SENDER_PASSWORD", "default_password")
@@ -1420,6 +1456,8 @@ def send_sms_to_api(self, message_detail):
                 ledger=ledger_bal,
                 contact=tel_number,
                 message=message,
+                status="SENT",
+                response_data=api_response,
             )
 
         return response_data
@@ -1492,6 +1530,8 @@ def send_sms_to_api(self, message_detail):
                 ledger=ledger_bal,
                 contact=tel_number,
                 message=message,
+                status="FAILED",
+                response_data={"error": error_msg},
             )
 
         return {

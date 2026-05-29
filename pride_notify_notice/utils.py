@@ -7,7 +7,7 @@ import requests
 from requests.auth import HTTPBasicAuth
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from dateutil.parser import parse
 load_dotenv()
 
@@ -380,6 +380,42 @@ def filter_today_transactions(transactions, start_time=None, end_time=None):
             result.append(txn)
 
     return result
+
+
+def get_rolling_window(window_hours=1):
+    """Return a (window_start, window_end) datetime tuple for the last hour(s).
+
+    `window_end` is anchored to the top of the current hour and `window_start`
+    is `window_hours` earlier. Anchoring to the hour boundary means consecutive
+    hourly runs produce adjacent, non-overlapping windows that tile the day
+    exactly, so a transaction falls into exactly one window (no gaps, no
+    overlaps) regardless of small differences in when each run actually fires.
+    """
+    now = timezone.localtime()
+    window_end = now.replace(minute=0, second=0, microsecond=0)
+    window_start = window_end - timedelta(hours=window_hours)
+    return window_start, window_end
+
+
+def filter_transactions_in_window(transactions, window_start, window_end):
+    """Return transactions whose TXN_TIME falls within [window_start, window_end).
+
+    Uses a half-open interval (start inclusive, end exclusive) so that a
+    transaction sitting exactly on an hour boundary is processed by one run
+    only and never counted in two adjacent windows.
+    """
+    result = []
+
+    for txn in transactions:
+        txn_datetime = _parse_transaction_datetime(txn.get('TXN_TIME'))
+        if txn_datetime is None:
+            continue
+
+        if window_start <= txn_datetime < window_end:
+            result.append(txn)
+
+    return result
+
 
 def update_ATM_expiry(loan_details):
     test_list = loan_details[:10]
