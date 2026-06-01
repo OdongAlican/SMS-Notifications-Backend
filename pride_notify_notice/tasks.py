@@ -10,11 +10,12 @@ from pride_notify_notice.utils import (
     handle_loans_due, 
     handle_birthdays, 
     handle_URA_reports, 
-    handle_group_loans, 
-    # update_ATM_expiry, 
-    # update_List_greg_school_reports, 
+    handle_group_loans,
+    # update_ATM_expiry,
+    # update_List_greg_school_reports,
     # update_group_loans,
     parse_schedule_time,
+    send_birthday_sms,
 )
 import urllib3
 from datetime import datetime
@@ -1366,21 +1367,26 @@ def send_sms_to_api(self, message_detail):
                 'response_data': {'skipped': 'duplicate'},
             }
 
-        # Send SMS (existing code)
-        sender_name = os.getenv("MOONLIGHT_SENDER_NAME", "default_sender")
-        password = os.getenv("MOONLIGHT_SENDER_PASSWORD", "default_password")
-        address = os.getenv("MOONLIGHT_SENDER_ADDRESS", "http://example.com/api")
+        # Birthday messages go through the new SMS gateway; every other message
+        # type keeps using the legacy Moonlight endpoint below.
+        if log_model == BirthdaySMSLog:
+            api_response = send_birthday_sms(tel_number, message)
+        else:
+            # Send SMS (existing code)
+            sender_name = os.getenv("MOONLIGHT_SENDER_NAME", "default_sender")
+            password = os.getenv("MOONLIGHT_SENDER_PASSWORD", "default_password")
+            address = os.getenv("MOONLIGHT_SENDER_ADDRESS", "http://example.com/api")
 
-        resp = http.request(
-            'GET',
-            f"{address}?sender_name={sender_name}&password={password}&recipient_addr={tel_number}&message={message}"
-        )
+            resp = http.request(
+                'GET',
+                f"{address}?sender_name={sender_name}&password={password}&recipient_addr={tel_number}&message={message}"
+            )
 
-        # Attempt to parse response
-        try:
-            api_response = json.loads(resp.data.decode('utf-8'))
-        except json.decoder.JSONDecodeError:
-            api_response = {"raw_response": resp.data.decode('utf-8')}
+            # Attempt to parse response
+            try:
+                api_response = json.loads(resp.data.decode('utf-8'))
+            except json.decoder.JSONDecodeError:
+                api_response = {"raw_response": resp.data.decode('utf-8')}
 
 
         response_data = {
@@ -1414,13 +1420,21 @@ def send_sms_to_api(self, message_detail):
                 response_data=api_response
             )
         elif log_model == BirthdaySMSLog:
+            # The new gateway returns {"requestId": ..., "status": "QUEUED"}.
+            # Store the short status string in `status` (CharField) and keep the
+            # full payload (incl. requestId) in `response_data`.
+            birthday_status = (
+                api_response.get("status")
+                if isinstance(api_response, dict)
+                else api_response
+            )
             log_model.objects.create(
                 acct_nm=acct_nm,
                 client_type=client_type,
                 message=message,
                 date_of_birth=date_of_birth,
                 contact=tel_number,
-                status=api_response,
+                status=birthday_status,
                 response_data=api_response
             )
         elif log_model == GroupLoanSMSLog:
