@@ -3,6 +3,7 @@ from django.conf import settings
 from django.utils import timezone
 from .models import SMSLog, BirthdaySMSLog
 import os
+import uuid
 import requests
 from requests.auth import HTTPBasicAuth
 from cryptography.fernet import Fernet
@@ -442,6 +443,44 @@ def update_group_loans(loan_details):
         updated_list.append(acct)
     
     return updated_list
+
+
+def send_birthday_sms(tel_number, message):
+    """Send a birthday SMS via the new Pride SMS gateway.
+
+    Only birthday messages use this gateway; every other notification type keeps
+    using the legacy Moonlight endpoint. The gateway expects a JSON body with a
+    unique idempotency key (prefixed `CEP-` to namespace this app) and the
+    credentials supplied via custom request headers.
+    """
+    gateway_url = getattr(settings, 'BIRTHDAY_SMS_GATEWAY_URL', '')
+    username = getattr(settings, 'BIRTHDAY_SMS_API_USERNAME', '')
+    password = getattr(settings, 'BIRTHDAY_SMS_API_PASSWORD', '')
+
+    payload = {
+        "to": str(tel_number),
+        "text": message,
+        "idempotencyKey": f"CEP-{uuid.uuid4().hex}",
+        "messageType": "NOTIFICATION",
+    }
+    headers = {
+        "X-Api-Username": username,
+        "X-Api-Password": password,
+        "Content-Type": "application/json",
+    }
+
+    response = requests.post(
+        gateway_url,
+        json=payload,
+        headers=headers,
+        timeout=20,
+        verify=False,
+    )
+
+    try:
+        return response.json()
+    except ValueError:
+        return {"raw_response": response.text, "status_code": response.status_code}
 
 
 def parse_schedule_time(value, field_name):
