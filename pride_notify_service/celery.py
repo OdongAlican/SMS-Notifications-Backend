@@ -36,6 +36,10 @@ app.conf.beat_schedule = {
         'task': 'pride_notify_notice.tasks.retrieve_ura_report',
         'schedule': crontab(hour=6, minute=10),  # Run everyday at 6:10 am
     },
+    'send-interswitch-agents-report-every-day': {
+        'task': 'pride_notify_notice.tasks.retrieve_interswitch_agents_report',
+        'schedule': crontab(hour=6, minute=40),  # Run everyday at 6:40 am
+    },
     'send-group-loans-report': {
         'task': 'pride_notify_notice.tasks.retrieve_group_loans',
         'schedule': crontab(hour=8, minute=17),  # Run everyday at 8:17 am

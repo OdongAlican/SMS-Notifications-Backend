@@ -9,7 +9,8 @@ from pride_notify_notice.utils import (
     handle_greg_school_reports, 
     handle_loans_due, 
     handle_birthdays, 
-    handle_URA_reports, 
+    handle_URA_reports,
+    handle_interswitch_agents_report,
     handle_group_loans,
     # update_ATM_expiry,
     # update_List_greg_school_reports,
@@ -1080,6 +1081,268 @@ def send_csv_report_email(recipient_email, subject, message, csv_file_path):
         print("Error sending CSV report email:", e)
         return False
 
+
+
+@shared_task(bind=True, max_retries=5, default_retry_delay=300)
+def retrieve_interswitch_agents_report(self):
+    try:
+        interswitch_report_data = handle_interswitch_agents_report()
+        print(interswitch_report_data)
+
+        # Accept either a bare list or the common {"Report"/"data"/...} envelope.
+        if isinstance(interswitch_report_data, list):
+            report_list = interswitch_report_data
+        elif isinstance(interswitch_report_data, dict):
+            report_list = (
+                interswitch_report_data.get("Report")
+                or interswitch_report_data.get("data")
+                or interswitch_report_data.get("Person")
+                or interswitch_report_data.get("statement")
+                or []
+            )
+        else:
+            report_list = []
+
+        # Keep only dict rows so the dynamic column extraction below is safe.
+        report_list = [row for row in report_list if isinstance(row, dict)]
+
+        if not report_list:
+            raise ValueError("Empty Interswitch agents report received.")
+
+        def safe_parse_date(dt):
+            try:
+                if not dt:
+                    return None
+                return parse(str(dt))
+            except Exception:
+                return None
+
+        def to_float(val):
+            try:
+                if val in (None, ''):
+                    return 0.0
+                return float(str(val).replace(',', ''))
+            except Exception:
+                return 0.0
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Interswitch Agents Report"
+
+        # Order rows chronologically so the running balance / period read correctly.
+        report_sorted = sorted(
+            report_list,
+            key=lambda n: safe_parse_date(n.get('TRAN_DT')) or datetime.min,
+        )
+
+        # Header-level details from the first record.
+        first = report_sorted[0]
+        acct_name = (first.get('ACCT_NM') or '').strip()
+        customer_name = (first.get('CUST_NM') or '').strip()
+        address = (first.get('ADDR_LINE_1') or '').strip()
+        branch_name = (first.get('BU_NM') or '').strip()
+        account_no = str(first.get('ACCT_NO') or '').strip()
+        product = (first.get('PROD_DESC') or '').strip()
+        currency = (first.get('CRNCY_NM') or first.get('CRNCY_CD_ISO') or '').strip()
+        bank_name = (first.get('BANK_NAME') or 'Pride Bank').strip()
+
+        # Period from min/max transaction date.
+        dates = [d for d in (safe_parse_date(n.get('TRAN_DT')) for n in report_sorted) if d]
+        start_date = min(dates).strftime('%d/%m/%Y') if dates else 'N/A'
+        end_date = max(dates).strftime('%d/%m/%Y') if dates else 'N/A'
+        report_date = datetime.now().strftime('%d/%m/%Y')
+
+        # Prefer the explicit balance/total fields supplied in the payload,
+        # falling back to derived values where they are absent.
+        last = report_sorted[-1]
+        opening_balance = to_float(first.get('OPENING_BAL'))
+        closing_balance = to_float(last.get('CLOSING_BAL')) or to_float(last.get('STMNT_BAL'))
+        total_debits = to_float(first.get('TOTAL_DR_AMT')) or sum(to_float(n.get('DEBIT_AMT')) for n in report_sorted)
+        total_credits = to_float(first.get('TOTAL_CR_AMT')) or sum(to_float(n.get('CREDIT_AMT')) for n in report_sorted)
+        count_debits = sum(1 for n in report_sorted if to_float(n.get('DEBIT_AMT')) > 0)
+        count_credits = sum(1 for n in report_sorted if to_float(n.get('CREDIT_AMT')) > 0)
+
+        # Transaction table columns mapped to the Interswitch fields.
+        headers = [
+            ("S/N", None),
+            ("Transaction Date", 'TRAN_DT'),
+            ("Value Date", 'VALUE_DT'),
+            ("Description", 'TRAN_DESC'),
+            ("Reference", 'TRAN_REF_TXT'),
+            ("Event", 'EVENT_DESC'),
+            ("Channel", 'CHANNEL_DESC'),
+            ("Contra Account", 'CONTRA_ACCT_NO'),
+            ("Recipient", 'RECIPIENT_NAME'),
+            ("Dr / Cr", 'DR_CR_IND'),
+            ("Debit", 'DEBIT_AMT'),
+            ("Credit", 'CREDIT_AMT'),
+            ("Balance", 'STMNT_BAL'),
+            ("Posted By", 'POSTED_BY'),
+            ("Branch", 'BU_NM'),
+        ]
+        header_labels = [h[0] for h in headers]
+        num_cols = len(headers)
+
+        date_fields = {'TRAN_DT', 'VALUE_DT'}
+        amount_fields = {'DEBIT_AMT', 'CREDIT_AMT', 'STMNT_BAL'}
+        text_fields = {'TRAN_REF_TXT', 'CONTRA_ACCT_NO'}  # keep as text, no sci-notation
+
+        # Column letters used for number/text formatting below.
+        amount_cols = [get_column_letter(i + 1) for i, h in enumerate(headers) if h[1] in amount_fields]
+        text_cols = [get_column_letter(i + 1) for i, h in enumerate(headers) if h[1] in text_fields]
+
+        def merge_full(row_idx):
+            ws.merge_cells(start_row=row_idx, start_column=1, end_row=row_idx, end_column=num_cols)
+
+        # Title (Row 1)
+        ws.append(["Interswitch Agency Banking Report"])
+        merge_full(1)
+        ws['A1'].font = Font(bold=True, size=14)
+        ws['A1'].alignment = Alignment(horizontal='center')
+
+        # Generated-on subtitle (Row 2)
+        ws.append([f"Generated on: {report_date}"])
+        merge_full(2)
+        ws['A2'].font = Font(italic=True)
+        ws['A2'].alignment = Alignment(horizontal='center')
+
+        # Account information block (left-aligned, one field per merged row).
+        info_lines = [
+            f"Account Name: {acct_name}",
+            f"Customer: {customer_name}",
+            f"Account No: {account_no}",
+            f"Product: {product}",
+            f"Currency: {currency}",
+            f"Branch: {branch_name}",
+            f"Address: {address}",
+            f"Bank: {bank_name}",
+            f"Period: {start_date} to {end_date}",
+        ]
+        for line in info_lines:
+            ws.append([line])
+            merge_full(ws.max_row)
+            ws[f'A{ws.max_row}'].font = Font(bold=True)
+            ws[f'A{ws.max_row}'].alignment = Alignment(horizontal='left')
+
+        # Spacer + opening balance line.
+        ws.append([""])
+        ws.append([f"Opening Balance: {opening_balance:,.2f}"])
+        merge_full(ws.max_row)
+        ws[f'A{ws.max_row}'].font = Font(bold=True)
+
+        # Spacer before the table.
+        ws.append([""])
+
+        # Table header row.
+        ws.append(header_labels)
+        header_row_idx = ws.max_row
+        for col_num in range(1, num_cols + 1):
+            cell = ws.cell(row=header_row_idx, column=col_num)
+            cell.font = Font(bold=True)
+            cell.alignment = Alignment(horizontal='center')
+
+        # Data rows.
+        for idx, record in enumerate(report_sorted, start=1):
+            row_values = []
+            for _label, field in headers:
+                if field is None:  # S/N column
+                    row_values.append(idx)
+                elif field in date_fields:
+                    parsed = safe_parse_date(record.get(field))
+                    row_values.append(parsed.strftime('%d/%m/%Y') if parsed else '')
+                elif field in amount_fields:
+                    row_values.append(to_float(record.get(field)))
+                elif field in text_fields:
+                    row_values.append(str(record.get(field) or ''))
+                else:
+                    row_values.append(record.get(field) or '')
+            ws.append(row_values)
+
+        data_end_row = ws.max_row
+
+        # Number / text formatting on the data rows.
+        for col in amount_cols:
+            for cell in ws[col][header_row_idx:data_end_row]:
+                cell.number_format = '#,##0.00'
+        for col in text_cols:
+            for cell in ws[col][header_row_idx:data_end_row]:
+                cell.number_format = '@'
+                cell.alignment = Alignment(horizontal='left')
+
+        # Summary footer: counts, totals, closing balance.
+        ws.append([""])
+        ws.append([f"Debit(s) - {count_debits}   Credit(s) - {count_credits}"])
+        merge_full(ws.max_row)
+        ws[f'A{ws.max_row}'].font = Font(bold=True)
+
+        totals_row_idx = ws.max_row + 1
+        ws.cell(row=totals_row_idx, column=1, value="Total :-").font = Font(bold=True)
+        debit_col_idx = header_labels.index("Debit") + 1
+        credit_col_idx = header_labels.index("Credit") + 1
+        balance_col_idx = header_labels.index("Balance") + 1
+        ws.cell(row=totals_row_idx, column=debit_col_idx, value=total_debits).number_format = '#,##0.00'
+        ws.cell(row=totals_row_idx, column=credit_col_idx, value=total_credits).number_format = '#,##0.00'
+        ws.cell(row=totals_row_idx, column=balance_col_idx, value=closing_balance).number_format = '#,##0.00'
+
+        ws.append([""])
+        ws.append([f"Closing Balance: {closing_balance:,.2f}"])
+        merge_full(ws.max_row)
+        ws[f'A{ws.max_row}'].font = Font(bold=True)
+
+        # Auto-adjust column widths.
+        for col_cells in ws.columns:
+            max_length = 0
+            col_letter = get_column_letter(col_cells[0].column)
+            for cell in col_cells:
+                try:
+                    if cell.value is not None:
+                        max_length = max(max_length, len(str(cell.value)))
+                except Exception:
+                    pass
+            ws.column_dimensions[col_letter].width = min(max_length + 2, 60)
+
+        # Borders on the table (header + data).
+        thin_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thin'),
+        )
+        for row in ws.iter_rows(min_row=header_row_idx, max_row=data_end_row, min_col=1, max_col=num_cols):
+            for cell in row:
+                cell.border = thin_border
+
+        # Alternating row shading for readability.
+        for row_idx in range(header_row_idx + 1, data_end_row + 1):
+            if row_idx % 2 == 0:
+                for col_idx in range(1, num_cols + 1):
+                    ws.cell(row=row_idx, column=col_idx).fill = PatternFill(
+                        start_color="F2F2F2", end_color="F2F2F2", fill_type="solid"
+                    )
+
+        excel_filename = f"interswitch_agents_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+        wb.save(excel_filename)
+
+        send_csv_report_email(
+            recipient_email=settings.INTERSWITCH_REPORT_EMAILS,
+            subject="Interswitch Agents Report Excel",
+            message="Please find attached the latest Interswitch agents report.",
+            csv_file_path=excel_filename,
+        )
+
+        print(f"Interswitch agents report saved to {excel_filename}")
+        return [{
+            'filename': excel_filename,
+            'content': f"Interswitch agents report generated and saved to {excel_filename}"
+        }]
+
+    except (ValueError) as e:
+        print(f"Data error: {e}")
+        raise self.retry(exc=e)
+
+    except Exception as exc:
+        print(f"Unexpected error occurred: {exc}")
+        raise self.retry(exc=exc)
 
 
 @shared_task(bind=True, max_retries=5, default_retry_delay=300)
