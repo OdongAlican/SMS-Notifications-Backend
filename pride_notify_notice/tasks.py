@@ -1089,21 +1089,29 @@ def retrieve_interswitch_agents_report(self):
         interswitch_report_data = handle_interswitch_agents_report()
         print(interswitch_report_data)
 
-        # Accept either a bare list or the common {"Report"/"data"/...} envelope.
-        if isinstance(interswitch_report_data, list):
-            report_list = interswitch_report_data
-        elif isinstance(interswitch_report_data, dict):
-            report_list = (
-                interswitch_report_data.get("Report")
-                or interswitch_report_data.get("data")
-                or interswitch_report_data.get("Person")
-                or interswitch_report_data.get("statement")
-                or []
-            )
-        else:
-            report_list = []
+        # Normalise whatever shape the ESB returns (bare list, envelope with a
+        # list value, or envelope with a single record dict) into a list of
+        # records, mirroring the helper used by the escrow / greg-school tasks.
+        def normalize_notifications(payload_data):
+            if isinstance(payload_data, list):
+                return payload_data
+            if isinstance(payload_data, dict):
+                payload = (
+                    payload_data.get("Report")
+                    or payload_data.get("data")
+                    or payload_data.get("Person")
+                    or payload_data.get("statement")
+                    or []
+                )
+                if isinstance(payload, dict):
+                    return [payload]
+                if isinstance(payload, list):
+                    return payload
+            return []
 
-        # Keep only dict rows so the dynamic column extraction below is safe.
+        report_list = normalize_notifications(interswitch_report_data)
+
+        # Keep only dict rows so the column extraction below is safe.
         report_list = [row for row in report_list if isinstance(row, dict)]
 
         if not report_list:
