@@ -797,7 +797,7 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
         print(f"Unexpected error occurred: {exc}")
         raise
 
-    
+
 @shared_task(bind=True, max_retries=5, default_retry_delay=300)
 def retrieve_ura_report(self):
     try:
@@ -1113,7 +1113,7 @@ def retrieve_interswitch_agents_report(self):
         acct_name = (first.get('ACCT_NM') or '').strip()
         # customer_name = (first.get('CUST_NM') or '').strip()
         # address = (first.get('ADDR_LINE_1') or '').strip()
-        branch_name = (first.get('BU_NM') or '').strip()
+        # branch_name = (first.get('BU_NM') or '').strip()
         account_no = str(first.get('ACCT_NO') or '').strip()
         product = (first.get('PROD_DESC') or '').strip()
         currency = (first.get('CRNCY_NM') or first.get('CRNCY_CD_ISO') or '').strip()
@@ -1129,9 +1129,13 @@ def retrieve_interswitch_agents_report(self):
         # falling back to derived values where they are absent.
         last = report_sorted[-1]
         opening_balance = to_float(first.get('OPENING_BAL'))
-        closing_balance = to_float(last.get('CLOSING_BAL')) or to_float(last.get('STMNT_BAL'))
-        total_debits = to_float(first.get('TOTAL_DR_AMT')) or sum(to_float(n.get('DEBIT_AMT')) for n in report_sorted)
-        total_credits = to_float(first.get('TOTAL_CR_AMT')) or sum(to_float(n.get('CREDIT_AMT')) for n in report_sorted)
+        # closing_balance = to_float(last.get('CLOSING_BAL')) or to_float(last.get('STMNT_BAL'))
+        closing_balance = to_float(last.get('STMNT_BAL'))
+        # total_debits = to_float(first.get('TOTAL_DR_AMT')) or sum(to_float(n.get('DEBIT_AMT')) for n in report_sorted)
+        total_debits = sum(to_float(n.get('DEBIT_AMT')) for n in report_sorted)
+        # total_credits = to_float(first.get('TOTAL_CR_AMT')) or sum(to_float(n.get('CREDIT_AMT')) for n in report_sorted)
+        total_credits = sum(to_float(n.get('CREDIT_AMT')) for n in report_sorted)
+
         count_debits = sum(1 for n in report_sorted if to_float(n.get('DEBIT_AMT')) > 0)
         count_credits = sum(1 for n in report_sorted if to_float(n.get('CREDIT_AMT')) > 0)
 
