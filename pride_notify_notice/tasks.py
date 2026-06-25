@@ -796,6 +796,8 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
     except Exception as exc:
         print(f"Unexpected error occurred: {exc}")
         raise
+
+    
 @shared_task(bind=True, max_retries=5, default_retry_delay=300)
 def retrieve_ura_report(self):
     try:
