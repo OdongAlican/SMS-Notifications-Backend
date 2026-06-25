@@ -1146,8 +1146,8 @@ def retrieve_interswitch_agents_report(self):
         # Header-level details from the first record.
         first = report_sorted[0]
         acct_name = (first.get('ACCT_NM') or '').strip()
-        customer_name = (first.get('CUST_NM') or '').strip()
-        address = (first.get('ADDR_LINE_1') or '').strip()
+        # customer_name = (first.get('CUST_NM') or '').strip()
+        # address = (first.get('ADDR_LINE_1') or '').strip()
         branch_name = (first.get('BU_NM') or '').strip()
         account_no = str(first.get('ACCT_NO') or '').strip()
         product = (first.get('PROD_DESC') or '').strip()
@@ -1177,23 +1177,25 @@ def retrieve_interswitch_agents_report(self):
             ("Value Date", 'VALUE_DT'),
             ("Description", 'TRAN_DESC'),
             ("Reference", 'TRAN_REF_TXT'),
-            ("Event", 'EVENT_DESC'),
-            ("Channel", 'CHANNEL_DESC'),
-            ("Contra Account", 'CONTRA_ACCT_NO'),
+            # ("Event", 'EVENT_DESC'),
+            # ("Channel", 'CHANNEL_DESC'),
+            # ("Contra Account", 'CONTRA_ACCT_NO'),
+            ("Recipient Account", 'RECIPIENT_ACCOUNT'),
             ("Recipient", 'RECIPIENT_NAME'),
             ("Dr / Cr", 'DR_CR_IND'),
             ("Debit", 'DEBIT_AMT'),
             ("Credit", 'CREDIT_AMT'),
             ("Balance", 'STMNT_BAL'),
-            ("Posted By", 'POSTED_BY'),
-            ("Branch", 'BU_NM'),
+            # ("Posted By", 'POSTED_BY'),
+            # ("Branch", 'BU_NM'),
         ]
         header_labels = [h[0] for h in headers]
         num_cols = len(headers)
 
         date_fields = {'TRAN_DT', 'VALUE_DT'}
         amount_fields = {'DEBIT_AMT', 'CREDIT_AMT', 'STMNT_BAL'}
-        text_fields = {'TRAN_REF_TXT', 'CONTRA_ACCT_NO'}  # keep as text, no sci-notation
+        # text_fields = {'TRAN_REF_TXT', 'CONTRA_ACCT_NO'}  # keep as text, no sci-notation
+        text_fields = {'TRAN_REF_TXT', 'RECIPIENT_ACCOUNT'}  # keep as text, no sci-notation
 
         # Column letters used for number/text formatting below.
         amount_cols = [get_column_letter(i + 1) for i, h in enumerate(headers) if h[1] in amount_fields]
@@ -1217,12 +1219,12 @@ def retrieve_interswitch_agents_report(self):
         # Account information block (left-aligned, one field per merged row).
         info_lines = [
             f"Account Name: {acct_name}",
-            f"Customer: {customer_name}",
+            # f"Customer: {customer_name}",
             f"Account No: {account_no}",
             f"Product: {product}",
             f"Currency: {currency}",
-            f"Branch: {branch_name}",
-            f"Address: {address}",
+            # f"Branch: {branch_name}",
+            # f"Address: {address}",
             f"Bank: {bank_name}",
             f"Period: {start_date} to {end_date}",
         ]
