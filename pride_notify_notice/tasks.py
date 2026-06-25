@@ -288,13 +288,12 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
         max_stage_attempts = 5
         max_cycles = 3
         retry_countdown = 300
-
+ 
         if stage not in {"primary", "fallback"}:
             raise ValueError(f"Invalid escrow retry stage '{stage}'.")
-
         if stage_attempt < 1 or cycle < 1:
             raise ValueError("Escrow retry state must start from attempt 1 and cycle 1.")
-
+ 
         def safe_parse_date(dt):
             try:
                 if not dt:
@@ -302,7 +301,7 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
                 return parse(str(dt))
             except Exception:
                 return None
-
+ 
         def to_float(val):
             try:
                 if val in (None, ''):
@@ -310,7 +309,7 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
                 return float(str(val).replace(',', ''))
             except Exception:
                 return 0.0
-
+ 
         def normalize_notifications(payload_data):
             if isinstance(payload_data, list):
                 return payload_data
@@ -326,12 +325,12 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
                 if isinstance(payload, list):
                     return payload
             return []
-
+ 
         def build_no_transaction_report(fallback_first):
             wb = Workbook()
             ws = wb.active
             ws.title = "MTN Escrow Statement"
-
+ 
             acct_name = (fallback_first.get('ACCT_NM') or 'MTN ESCROW ACCOUNT').strip()
             address = (fallback_first.get('ADDR_LINE_1') or 'PO Box 7566').strip()
             branch_name = (fallback_first.get('BU_NM') or 'Head Office').strip()
@@ -339,30 +338,32 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
             product = (fallback_first.get('PROD_DESC') or 'ESCROW DEPOSIT PRODUCT').strip()
             currency = (fallback_first.get('CRNCY_NM') or fallback_first.get('CRNCY_CD_ISO') or 'Uganda Shillings').strip()
             bank_name = (fallback_first.get('BANK_NAME') or 'Pride Bank').strip()
-
             transaction_date = safe_parse_date(fallback_first.get('TRAN_DT'))
             from_date = transaction_date.strftime('%d/%m/%Y') if transaction_date else ''
             to_date = transaction_date.strftime('%d/%m/%Y') if transaction_date else ''
             printed_on = datetime.now().strftime('%d/%m/%Y')
-
+ 
             opening_balance = to_float(
                 fallback_first.get('OPENING_BAL')
                 or fallback_first.get('OPENING_BALANCE')
-                or fallback_first.get('OPENING_BAL')
                 or fallback_first.get('STMNT_BAL')
             )
-            closing_balance = to_float(
+ 
+            _raw_closing = (
                 fallback_first.get('CLOSING_BAL')
                 or fallback_first.get('CLOSING_BALANCE')
-                or fallback_first.get('STMNT_BAL')
-                or opening_balance
             )
-
+            closing_balance = (
+                to_float(_raw_closing)
+                if _raw_closing not in (None, '')
+                else to_float(fallback_first.get('STMNT_BAL') or opening_balance)
+            )
+ 
             ws.append(["MTN Escrow Transaction Statement"])
             ws.merge_cells('A1:N1')
             ws['A1'].font = Font(bold=True, size=14)
             ws['A1'].alignment = Alignment(horizontal='center')
-
+ 
             left_rows = [
                 ("Acct Name", acct_name),
                 ("Address", address),
@@ -377,7 +378,7 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
                 ("Bank", bank_name),
                 ("Printed On", printed_on),
             ]
-
+ 
             ws.column_dimensions['A'].width = 18
             ws.column_dimensions['B'].width = 28
             ws.column_dimensions['C'].width = 6
@@ -386,13 +387,14 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
             ws.column_dimensions['F'].width = 28
             ws.column_dimensions['G'].width = 6
             ws.column_dimensions['H'].width = 4
-
+ 
             label_fill = PatternFill(start_color="EEF2F7", end_color="EEF2F7", fill_type="solid")
             value_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
             header_border = Border(
-                left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin')
+                left=Side(style='thin'), right=Side(style='thin'),
+                top=Side(style='thin'), bottom=Side(style='thin')
             )
-
+ 
             start_row = 3
             for i, (label, value) in enumerate(left_rows):
                 r = start_row + i
@@ -401,13 +403,12 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
                 lc.alignment = Alignment(horizontal='left', vertical='center')
                 lc.fill = label_fill
                 lc.border = header_border
-
                 ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=3)
                 vc = ws.cell(row=r, column=2, value=value)
                 vc.alignment = Alignment(horizontal='left', vertical='center')
                 vc.fill = value_fill
                 vc.border = header_border
-
+ 
             for i, (label, value) in enumerate(right_rows):
                 r = start_row + i
                 rc = ws.cell(row=r, column=5, value=f"{label}:")
@@ -415,28 +416,27 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
                 rc.alignment = Alignment(horizontal='left', vertical='center')
                 rc.fill = label_fill
                 rc.border = header_border
-
                 ws.merge_cells(start_row=r, start_column=6, end_row=r, end_column=8)
                 rv = ws.cell(row=r, column=6, value=value)
                 rv.alignment = Alignment(horizontal='left', vertical='center')
                 rv.fill = value_fill
                 rv.border = header_border
-
+ 
             ws.append([""])
             ws.append(["No transactions found for previous day."])
             ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
             ws[f'A{ws.max_row}'].font = Font(italic=True)
-
+ 
             ws.append([""])
             ws.append([f"Opening balance : {opening_balance:,.2f}"])
             ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
             ws[f'A{ws.max_row}'].font = Font(bold=True)
-
+ 
             ws.append([""])
-            ws.append([f"Closing {closing_balance:,.2f}"])
+            ws.append([f"Closing balance : {closing_balance:,.2f}"])
             ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
             ws[f'A{ws.max_row}'].font = Font(bold=True)
-
+ 
             ws.append([""])
             ws.append(["Printed By : CUSTOMER ENGAGEMENT SYSTEM"])
             ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
@@ -444,17 +444,15 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
             ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
             ws.append(["Verified By: CUSTOMER ENGAGEMENT SYSTEM"])
             ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
-
+ 
             excel_filename = f"mtn_escrow_statement_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
             wb.save(excel_filename)
-
             send_csv_report_email(
                 recipient_email=getattr(settings, 'ESCROW_REPORT_EMAILS', []),
                 subject=f"Daily MTN Escrow Statement - {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}",
                 message="Dear Valued Partner, \nPlease find the attached MTN Escrow statement (no transactions for previous day).",
                 csv_file_path=excel_filename
             )
-
             print(f"Escrow no-transaction statement saved to {excel_filename}")
             return [{
                 'filename': excel_filename,
@@ -469,40 +467,30 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
                 },
                 'no_transactions': True,
             }]
-
-        print(
-            f"Running escrow retrieval stage={stage}, attempt={stage_attempt}, cycle={cycle}."
-        )
-
+ 
+        print(f"Running escrow retrieval stage={stage}, attempt={stage_attempt}, cycle={cycle}.")
+ 
         if stage == "primary":
             try:
                 escrow_data = handle_Escrow_notifications()
                 print(f"Primary escrow notifications data received: {escrow_data}")
             except Exception as exc:
                 _retry_or_fail_escrow_stage(
-                    self,
-                    exc,
-                    stage,
-                    stage_attempt,
-                    cycle,
+                    self, exc, stage, stage_attempt, cycle,
                     max_stage_attempts=max_stage_attempts,
                     max_cycles=max_cycles,
                     retry_countdown=retry_countdown,
                 )
-
+ 
             notifications = normalize_notifications(escrow_data)
-
+ 
             if not notifications:
                 print(
                     "Primary escrow notifications returned no transactions. "
                     "Scheduling fallback no-transaction report retrieval in 300 seconds."
                 )
                 self.apply_async(
-                    kwargs={
-                        "stage": "fallback",
-                        "stage_attempt": 1,
-                        "cycle": cycle,
-                    },
+                    kwargs={"stage": "fallback", "stage_attempt": 1, "cycle": cycle},
                     countdown=retry_countdown,
                 )
                 return [{
@@ -517,40 +505,34 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
                 print(f"Fallback escrow no-transaction report data received: {fallback_escrow_data}")
             except Exception as exc:
                 _retry_or_fail_escrow_stage(
-                    self,
-                    exc,
-                    stage,
-                    stage_attempt,
-                    cycle,
+                    self, exc, stage, stage_attempt, cycle,
                     max_stage_attempts=max_stage_attempts,
                     max_cycles=max_cycles,
                     retry_countdown=retry_countdown,
                 )
-
+ 
             fallback_notifications = normalize_notifications(fallback_escrow_data)
             fallback_first = next((n for n in fallback_notifications if isinstance(n, dict)), None)
-
+ 
             if not fallback_first:
                 _retry_or_fail_escrow_stage(
                     self,
                     ValueError("Fallback escrow report returned no usable data."),
-                    stage,
-                    stage_attempt,
-                    cycle,
+                    stage, stage_attempt, cycle,
                     max_stage_attempts=max_stage_attempts,
                     max_cycles=max_cycles,
                     retry_countdown=retry_countdown,
                 )
-
+ 
             return build_no_transaction_report(fallback_first)
-
-        # Build Excel workbook borrowing layout from provided PDF
+ 
+        # --- Build Excel workbook ---
         wb = Workbook()
         ws = wb.active
         ws.title = "MTN Escrow Statement"
+ 
         print(f"Total notifications to process: {len(notifications)}")
-
-        # Extract header-level details from first record where available
+ 
         first = next((n for n in notifications if isinstance(n, dict)), {})
         acct_name = (first.get('ACCT_NM') or '').strip()
         address = (first.get('ADDR_LINE_1') or '').strip()
@@ -559,23 +541,27 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
         product = (first.get('PROD_DESC') or '').strip()
         currency = (first.get('CRNCY_NM') or first.get('CRNCY_CD_ISO') or '').strip()
         bank_name = (first.get('BANK_NAME') or 'Pride Bank').strip()
-
-        # Determine date range
+ 
         dates = [safe_parse_date(n.get('TRAN_DT')) for n in notifications if isinstance(n, dict)]
         dates = [d for d in dates if d is not None]
         from_date = min(dates).strftime('%d/%m/%Y') if dates else ''
         to_date = max(dates).strftime('%d/%m/%Y') if dates else ''
         printed_on = datetime.now().strftime('%d/%m/%Y')
-
-        # Fixing Openning balance calculation and ensuring transactions are in chronological order for accurate running balance and statement generation
-        # Ensure chronological order
+ 
+        # --- FIX: guard non-dict items ---
+        total_debits = sum(to_float(n.get('DEBIT_AMT')) for n in notifications if isinstance(n, dict))
+        total_credits = sum(to_float(n.get('CREDIT_AMT')) for n in notifications if isinstance(n, dict))
+        count_debits = sum(1 for n in notifications if isinstance(n, dict) and to_float(n.get('DEBIT_AMT')) > 0)
+        count_credits = sum(1 for n in notifications if isinstance(n, dict) and to_float(n.get('CREDIT_AMT')) > 0)
+ 
+        # Chronological sort
         def sort_key(n):
             dt = safe_parse_date(n.get('TRAN_DT')) if isinstance(n, dict) else None
             return dt or datetime.min
+ 
         notifications_sorted = sorted(notifications, key=sort_key)
-
-        # Opening balance is derived from the first transaction:
-        # opening = first statement balance - first credit + first debit
+ 
+        # Opening balance derived from first transaction
         first_txn = next((n for n in notifications_sorted if isinstance(n, dict)), None)
         if first_txn:
             first_stmnt_balance = to_float(first_txn.get('STMNT_BAL'))
@@ -584,21 +570,13 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
             opening_balance = first_stmnt_balance - first_credit + first_debit
         else:
             opening_balance = 0.0
-        # Ensure opening balance is not negative if first transaction is a debit without a credit
-
-        total_debits = sum(to_float(n.get('DEBIT_AMT')) for n in notifications)
-        total_credits = sum(to_float(n.get('CREDIT_AMT')) for n in notifications)
-        count_debits = sum(1 for n in notifications if to_float(n.get('DEBIT_AMT')) > 0)
-        count_credits = sum(1 for n in notifications if to_float(n.get('CREDIT_AMT')) > 0)
-
-        # Title
+ 
+        # --- Title ---
         ws.append(["MTN Escrow Transaction Statement"])
         ws.merge_cells('A1:N1')
         ws['A1'].font = Font(bold=True, size=14)
         ws['A1'].alignment = Alignment(horizontal='center')
-
-        # Modern, two-column header block (clean professional styling)
-        # Left column fields
+ 
         left_rows = [
             ("Acct Name", acct_name),
             ("Address", address),
@@ -606,7 +584,6 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
             ("Account No", account_no),
             ("Product", product),
         ]
-        # Right column fields
         right_rows = [
             ("Currency", currency),
             ("From Date", from_date),
@@ -614,8 +591,7 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
             ("Bank", bank_name),
             ("Printed On", printed_on),
         ]
-
-        # Column layout: A(Label) B-C(Value) D(Spacer) E(Label) F-H(Value)
+ 
         ws.column_dimensions['A'].width = 18
         ws.column_dimensions['B'].width = 28
         ws.column_dimensions['C'].width = 6
@@ -624,31 +600,28 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
         ws.column_dimensions['F'].width = 28
         ws.column_dimensions['G'].width = 6
         ws.column_dimensions['H'].width = 4
-
+ 
         label_fill = PatternFill(start_color="EEF2F7", end_color="EEF2F7", fill_type="solid")
         value_fill = PatternFill(start_color="FFFFFF", end_color="FFFFFF", fill_type="solid")
         header_border = Border(
-            left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin')
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin')
         )
-
+ 
         start_row = 3
-        # Render left column
         for i, (label, value) in enumerate(left_rows):
             r = start_row + i
-            # Label cell
             lc = ws.cell(row=r, column=1, value=f"{label}:")
             lc.font = Font(bold=True)
             lc.alignment = Alignment(horizontal='left', vertical='center')
             lc.fill = label_fill
             lc.border = header_border
-            # Value cells (merge B:C)
             ws.merge_cells(start_row=r, start_column=2, end_row=r, end_column=3)
             vc = ws.cell(row=r, column=2, value=value)
             vc.alignment = Alignment(horizontal='left', vertical='center')
             vc.fill = value_fill
             vc.border = header_border
-
-        # Render right column
+ 
         for i, (label, value) in enumerate(right_rows):
             r = start_row + i
             rc = ws.cell(row=r, column=5, value=f"{label}:")
@@ -661,21 +634,19 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
             rv.alignment = Alignment(horizontal='left', vertical='center')
             rv.fill = value_fill
             rv.border = header_border
-
-        # Add subtle spacing below header block
+ 
         ws.append([""])
-
-        # Opening balance line
         ws.append([""])
         ws.append([f"Opening balance : {opening_balance:,.2f}"])
         ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
-        ws[ f'A{ws.max_row}' ].font = Font(bold=True)
-
-        # Table headers
+        ws[f'A{ws.max_row}'].font = Font(bold=True)
+ 
+        # --- Table headers ---
         ws.append([""])
         headers = [
-            "Transaction Date", "Value Date", "Bank Reference", "MTN Reference", "MSISDN",
-            "Transaction Description", "Dr / Cr", "Debit", "Credit", "Balance",
+            "Transaction Date", "Value Date", "Bank Reference", "MTN Reference",
+            "MSISDN", "Transaction Description", "Dr / Cr",
+            "Debit", "Credit", "Balance",
             "CBS Status", "Prefunding", "Posted By", "Branch"
         ]
         ws.append(headers)
@@ -684,19 +655,11 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
             cell = ws.cell(row=header_row_idx, column=col_num)
             cell.font = Font(bold=True)
             cell.alignment = Alignment(horizontal='center')
-
-        # Data rows
-        amount_cols = {8, 9, 10}  # Debit, Credit, Balance
-
-        # Ensure chronological order
-        def sort_key(n):
-            dt = safe_parse_date(n.get('TRAN_DT')) if isinstance(n, dict) else None
-            return dt or datetime.min
-        notifications_sorted = sorted(notifications, key=sort_key)
-
-        # Initialize running balance from opening balance
+ 
+        # --- Data rows ---
+        amount_cols = {8, 9, 10}
         running_balance = opening_balance
-
+ 
         for n in notifications_sorted:
             if not isinstance(n, dict):
                 continue
@@ -704,48 +667,36 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
             value_dt = safe_parse_date(n.get('VALUE_DT'))
             tran_dt_s = tran_dt.strftime('%d/%m/%Y') if tran_dt else ''
             value_dt_s = value_dt.strftime('%d/%m/%Y') if value_dt else ''
-
             tran_desc = n.get('TRAN_DESC') or ''
             reference = n.get('TRAN_REF_TXT') or ''
             bank_ref = n.get('SETTLEMENT_BANK_REF') or ''
-            drcr = (n.get('DR_CR_IND') or ('DR' if to_float(n.get('DEBIT_AMT')) > 0 else 'CR' if to_float(n.get('CREDIT_AMT')) > 0 else '')).strip()
+            drcr = (
+                n.get('DR_CR_IND')
+                or ('DR' if to_float(n.get('DEBIT_AMT')) > 0 else 'CR' if to_float(n.get('CREDIT_AMT')) > 0 else '')
+            ).strip()
             debit = to_float(n.get('DEBIT_AMT'))
             credit = to_float(n.get('CREDIT_AMT'))
-
-            # Calculate running balance: opening + credits - debits
             running_balance = running_balance + credit - debit
-            # Balance column must map to CBS STMNT_BAL
             balance = to_float(n.get('STMNT_BAL'))
             cbs_status = n.get('CBS_Status') or ''
             prefunding = (n.get('PREFUNDING_BRANCH') or '').strip()
             posted_by = (n.get('POSTED_BY') or n.get('USER_NAME') or '').strip()
             branch = (n.get('BU_NM') or '').strip()
             msisdn = (n.get('CONTACT') or '').strip()
-
-            row = [
-                tran_dt_s,
-                value_dt_s,
-                str(reference),
-                str(bank_ref),
-                msisdn,
-                tran_desc,
-                drcr,
-                debit,
-                credit,
-                balance,
-                cbs_status,
-                prefunding,
-                posted_by,
-                branch,
-            ]
-            ws.append(row)
-
+ 
+            ws.append([
+                tran_dt_s, value_dt_s, str(reference), str(bank_ref),
+                msisdn, tran_desc, drcr,
+                debit, credit, balance,
+                cbs_status, prefunding, posted_by, branch,
+            ])
+ 
         # Format numeric columns
         for r in ws.iter_rows(min_row=header_row_idx + 1, max_row=ws.max_row, min_col=1, max_col=len(headers)):
             for idx, cell in enumerate(r, start=1):
                 if idx in amount_cols:
                     cell.number_format = '#,##0.00'
-
+ 
         # Auto-fit columns
         for col_cells in ws.columns:
             max_length = 0
@@ -757,62 +708,74 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
                 except Exception:
                     pass
             ws.column_dimensions[col_letter].width = min(max_length + 2, 60)
-
-        # Borders and zebra stripes
-        thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
+ 
+        # Borders
+        thin_border = Border(
+            left=Side(style='thin'), right=Side(style='thin'),
+            top=Side(style='thin'), bottom=Side(style='thin')
+        )
         for row in ws.iter_rows(min_row=header_row_idx, max_row=ws.max_row, min_col=1, max_col=len(headers)):
             for cell in row:
                 cell.border = thin_border
-
+ 
+        # Zebra stripes
         for row_idx in range(header_row_idx + 1, ws.max_row + 1):
             if row_idx % 2 == 0:
                 for col_idx in range(1, len(headers) + 1):
-                    ws.cell(row=row_idx, column=col_idx).fill = PatternFill(start_color="F7F7F7", end_color="F7F7F7", fill_type="solid")
-
-        # Summary footer similar to PDF
+                    ws.cell(row=row_idx, column=col_idx).fill = PatternFill(
+                        start_color="F7F7F7", end_color="F7F7F7", fill_type="solid"
+                    )
+ 
+        # --- Summary footer ---
         ws.append([""])
-        ws.append([f"Debit(s) - {count_debits}  Credit(s) - {count_credits}"])
+        ws.append([f"Debit(s) - {count_debits} Credit(s) - {count_credits}"])
         ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
-        ws[ f'A{ws.max_row}' ].font = Font(bold=True)
-
-        # Totals line: place values under Debit/Credit/Balance columns
-        totals_row_idx = ws.max_row + 1
-        ws.cell(row=totals_row_idx, column=1, value="Total :- ").font = Font(bold=True)
-        ws.cell(row=totals_row_idx, column=8, value=total_debits).number_format = '#,##0.00'
-        ws.cell(row=totals_row_idx, column=9, value=total_credits).number_format = '#,##0.00'
+        ws[f'A{ws.max_row}'].font = Font(bold=True)
+ 
+        # --- FIX: closing balance — only use CLOSING_BAL if field is present and non-empty ---
         last_txn = next((x for x in reversed(notifications_sorted) if isinstance(x, dict)), None)
-        closing_balance = to_float(last_txn.get('CLOSING_BAL')) if last_txn else (running_balance if notifications_sorted else opening_balance)
-        ws.cell(row=totals_row_idx, column=10, value=closing_balance).number_format = '#,##0.00'
-
-        # Closing balance line
+        _raw_closing = last_txn.get('CLOSING_BAL') if last_txn else None
+        closing_balance = (
+            to_float(_raw_closing)
+            if _raw_closing not in (None, '')
+            else (running_balance if notifications_sorted else opening_balance)
+        )
+ 
+        # --- FIX: split chained openpyxl assignments ---
+        totals_row_idx = ws.max_row + 1
+        lbl_cell = ws.cell(row=totals_row_idx, column=1, value="Total :- ")
+        lbl_cell.font = Font(bold=True)
+        dc = ws.cell(row=totals_row_idx, column=8, value=total_debits)
+        dc.number_format = '#,##0.00'
+        cc = ws.cell(row=totals_row_idx, column=9, value=total_credits)
+        cc.number_format = '#,##0.00'
+        bc = ws.cell(row=totals_row_idx, column=10, value=closing_balance)
+        bc.number_format = '#,##0.00'
+ 
+        # --- Closing balance line ---
         ws.append([""])
-        ws.append([f"Closing { closing_balance:,.2f}"])
+        ws.append([f"Closing balance : {closing_balance:,.2f}"])
         ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
-        ws[ f'A{ws.max_row}' ].font = Font(bold=True)
-
-        # Footer: printed by / verified by (dummy where missing)
-        # printed_by = next((n.get('POSTED_BY') for n in notifications_sorted if (n.get('POSTED_BY') or '').strip()), None) or (first.get('USER_NAME') or 'SYSTEM SYSTEM')
+        ws[f'A{ws.max_row}'].font = Font(bold=True)
+ 
+        # --- Footer ---
         ws.append([""])
-        # ws.append([f"Printed By : {printed_by}"])
-        ws.append([f"Printed By : CUSTOMER ENGAGEMENT SYSTEM"])
+        ws.append(["Printed By : CUSTOMER ENGAGEMENT SYSTEM"])
         ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
         ws.append([f"Print Date: {datetime.now().strftime('%d-%b-%Y')} "])
         ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
         ws.append(["Verified By: CUSTOMER ENGAGEMENT SYSTEM"])
         ws.merge_cells(start_row=ws.max_row, start_column=1, end_row=ws.max_row, end_column=6)
-
-        # Save file
+ 
+        # --- Save and email ---
         excel_filename = f"mtn_escrow_statement_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
         wb.save(excel_filename)
-
-        # Send the Excel file via email (same helper used by URA report)
         send_csv_report_email(
             recipient_email=getattr(settings, 'ESCROW_REPORT_EMAILS', []),
             subject=f"Daily MTN Escrow Statement - {datetime.now().strftime('%d-%m-%Y %H:%M:%S')}",
             message="Dear Valued Partner, \nPlease find the attached MTN Escrow statement.",
             csv_file_path=excel_filename
         )
-
         print(f"Escrow statement saved to {excel_filename}")
         return [{
             'filename': excel_filename,
@@ -822,17 +785,17 @@ def retrieve_escrow_notifications(self, stage="primary", stage_attempt=1, cycle=
                 'credits': total_credits,
                 'count_debits': count_debits,
                 'count_credits': count_credits,
+                'opening_balance': opening_balance,
+                'closing_balance': closing_balance,
             }
         }]
-
-    except (ValueError) as e:
+ 
+    except ValueError as e:
         print(f"Data error: {e}")
         raise
-
     except Exception as exc:
         print(f"Unexpected error occurred: {exc}")
         raise
-
 @shared_task(bind=True, max_retries=5, default_retry_delay=300)
 def retrieve_ura_report(self):
     try:
