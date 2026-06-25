@@ -1336,7 +1336,7 @@ def retrieve_interswitch_agents_report(self):
         send_csv_report_email(
             recipient_email=settings.INTERSWITCH_REPORT_EMAILS,
             subject="Interswitch Agents Report Excel",
-            message="Please find attached the latest Interswitch agents report.",
+            message="Dear Valued Partner, \nPlease find the attached Daily Interswitch statement.",
             csv_file_path=excel_filename,
         )
 
