@@ -1120,9 +1120,11 @@ def retrieve_interswitch_agents_report(self):
         bank_name = (first.get('BANK_NAME') or 'Pride Bank').strip()
 
         # Period from min/max transaction date.
-        dates = [d for d in (safe_parse_date(n.get('TRAN_DT')) for n in report_sorted) if d]
-        start_date = min(dates).strftime('%d/%m/%Y') if dates else 'N/A'
-        end_date = max(dates).strftime('%d/%m/%Y') if dates else 'N/A'
+        start_dates = [d for d in (safe_parse_date(n.get('TIMESTAMP')) for n in report_sorted) if d]
+        end_dates = [d for d in (safe_parse_date(n.get('TRAN_DT')) for n in report_sorted) if d]
+
+        start_date = min(start_dates).strftime('%d/%m/%Y') if start_dates else 'N/A'
+        end_date = max(end_dates).strftime('%d/%m/%Y') if end_dates else 'N/A'
         report_date = datetime.now().strftime('%d/%m/%Y')
 
         # Prefer the explicit balance/total fields supplied in the payload,
@@ -1162,7 +1164,7 @@ def retrieve_interswitch_agents_report(self):
         header_labels = [h[0] for h in headers]
         num_cols = len(headers)
 
-        date_fields = {'TRAN_DT', 'VALUE_DT'}
+        date_fields = {'TRAN_DT', 'VALUE_DT', 'TIMESTAMP'}
         amount_fields = {'DEBIT_AMT', 'CREDIT_AMT', 'STMNT_BAL'}
         # text_fields = {'TRAN_REF_TXT', 'CONTRA_ACCT_NO'}  # keep as text, no sci-notation
         text_fields = {'TRAN_REF_TXT', 'RECIPIENT_ACCOUNT'}  # keep as text, no sci-notation
