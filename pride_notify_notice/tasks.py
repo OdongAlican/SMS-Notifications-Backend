@@ -1142,7 +1142,8 @@ def retrieve_interswitch_agents_report(self):
         # Transaction table columns mapped to the Interswitch fields.
         headers = [
             ("S/N", None),
-            ("Transaction Date", 'TRAN_DT'),
+            # ("Transaction Date", 'TRAN_DT'), // Changed to TIMESTAMP for better clarity
+            ("Transaction Date", 'TIMESTAMP'),
             ("Value Date", 'VALUE_DT'),
             ("Description", 'TRAN_DESC'),
             ("Reference", 'TRAN_REF_TXT'),
